@@ -49,6 +49,25 @@ fn format_unix_msk(unix: u64) -> String {
 }
 
 pub(crate) const BUILTIN_1C_SEARCH_SERVER_ID: &str = "builtin-1c-search";
+pub(crate) const SEARCH_INDEX_DIR_ENV: &str = "MINI_AI_1C_SEARCH_INDEX_DIR";
+
+fn with_runtime_settings(mut config: McpServerConfig, settings: &AppSettings) -> McpServerConfig {
+    if config.id != BUILTIN_1C_SEARCH_SERVER_ID {
+        return config;
+    }
+
+    let mut env = config.env.take().unwrap_or_default();
+    let search_index_dir = settings.search_index_dir.trim();
+
+    if search_index_dir.is_empty() {
+        env.remove(SEARCH_INDEX_DIR_ENV);
+    } else {
+        env.insert(SEARCH_INDEX_DIR_ENV.to_string(), search_index_dir.to_string());
+    }
+
+    config.env = if env.is_empty() { None } else { Some(env) };
+    config
+}
 
 fn is_stdio_node_launcher_command(command: &str) -> bool {
     let normalized = command
@@ -237,6 +256,9 @@ impl McpManager {
     }
 
     pub async fn get_client(config: McpServerConfig) -> Result<Arc<McpSession>, String> {
+        let settings = crate::settings::load_settings();
+        let config = with_runtime_settings(config, &settings);
+        crate::logger::set_debug_mode(settings.debug_mode);
         let mut sessions = MCP_MANAGER.sessions.lock().await;
 
         if let Some((stored_config, session)) = sessions.get(&config.id) {
@@ -259,8 +281,6 @@ impl McpManager {
             }
             McpTransport::Http => Arc::new(McpSession::new_http(config.clone())),
             McpTransport::Stdio => {
-                let settings = crate::settings::load_settings();
-                crate::logger::set_debug_mode(settings.debug_mode);
                 Arc::new(McpSession::new_stdio(config.clone(), settings.debug_mode).await?)
             }
         };
@@ -285,7 +305,8 @@ impl McpManager {
         sessions.retain(|id, _| new_server_ids.contains(id));
 
         // 2. Update or Create servers
-        for config in new_settings.mcp_servers {
+        for raw_config in new_settings.mcp_servers.clone() {
+            let config = with_runtime_settings(raw_config, &new_settings);
             if !config.enabled {
                 // If disabled, remove if exists
                 sessions.remove(&config.id);
@@ -2146,6 +2167,28 @@ mod tests {
         assert!(builtin_search_unavailable_reason(&invalid_path)
             .expect("expected invalid path error")
             .contains("не найден"));
+    }
+
+    #[test]
+    fn builtin_search_runtime_env_includes_custom_search_index_dir() {
+        let config = McpServerConfig {
+            id: BUILTIN_1C_SEARCH_SERVER_ID.to_string(),
+            env: Some(HashMap::from([("ONEC_CONFIG_PATH".to_string(), "D:\\cfg".to_string())])),
+            ..Default::default()
+        };
+        let settings = AppSettings {
+            search_index_dir: " D:\\cfg\\search-index ".to_string(),
+            ..Default::default()
+        };
+
+        let config = with_runtime_settings(config, &settings);
+        let env = config.env.expect("env should be present");
+
+        assert_eq!(
+            env.get(SEARCH_INDEX_DIR_ENV).map(String::as_str),
+            Some("D:\\cfg\\search-index")
+        );
+        assert_eq!(env.get("ONEC_CONFIG_PATH").map(String::as_str), Some("D:\\cfg"));
     }
 
     #[test]
