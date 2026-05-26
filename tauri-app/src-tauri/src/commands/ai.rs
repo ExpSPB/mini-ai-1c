@@ -151,6 +151,18 @@ struct ContextUsagePayload {
     warning_level: &'static str,
 }
 
+fn resolve_context_usage_window(profile: Option<&crate::llm_profiles::LLMProfile>) -> usize {
+    profile
+        .and_then(|p| {
+            if p.max_tokens > 0 {
+                Some(p.max_tokens as usize)
+            } else {
+                p.context_window_override.map(|value| value as usize)
+            }
+        })
+        .unwrap_or(128_000)
+}
+
 /// Emits `context-usage` event with current token estimate and fill percentage.
 fn emit_context_usage(app: &AppHandle, messages: &[ApiMessage], context_window: usize) {
     let tokens = estimate_tokens(messages);
@@ -380,10 +392,9 @@ pub async fn stream_chat(
         })
         .collect();
 
-    // Resolve effective context window for UI indicator (override → profile default → 128k fallback)
-    let effective_context_window = crate::llm_profiles::get_active_profile()
-        .and_then(|p| p.context_window_override)
-        .unwrap_or(128_000) as usize;
+    // Resolve user-visible context budget for the UI indicator.
+    let active_profile = crate::llm_profiles::get_active_profile();
+    let effective_context_window = resolve_context_usage_window(active_profile.as_ref());
 
     // Spawn the work into a cancellable task
     let task_app_handle = app_handle.clone();
@@ -1105,5 +1116,28 @@ mod tests {
         };
 
         assert!(assistant_message_has_meaningful_payload(&message));
+    }
+
+    #[test]
+    fn context_usage_window_prefers_profile_max_tokens() {
+        let profile = crate::llm_profiles::LLMProfile {
+            id: "profile_1".to_string(),
+            name: "Local model".to_string(),
+            provider: crate::llm_profiles::LLMProvider::Custom,
+            model: "gemma".to_string(),
+            api_key_encrypted: String::new(),
+            base_url: None,
+            max_tokens: 8_000,
+            temperature: 0.7,
+            context_window_override: Some(128_000),
+            reasoning_effort: None,
+            enable_thinking: None,
+            disable_streaming: None,
+            stream_timeout_secs: None,
+            context_compress_strategy: String::new(),
+            max_context_messages: None,
+        };
+
+        assert_eq!(resolve_context_usage_window(Some(&profile)), 8_000);
     }
 }

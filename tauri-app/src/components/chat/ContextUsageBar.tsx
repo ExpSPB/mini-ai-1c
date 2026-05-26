@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { AlertTriangle, Plus } from 'lucide-react';
-
-interface ContextUsagePayload {
-    estimated_tokens: number;
-    context_window: number;
-    percent: number;
-    warning_level: 'ok' | 'warning' | 'critical';
-}
+import { resolveContextUsageDisplay, type ContextUsagePayload } from '../../utils/contextUsage';
 
 interface ContextUsageBarProps {
     onNewChat?: () => void;
@@ -15,6 +9,10 @@ interface ContextUsageBarProps {
     profileId?: string;
     /** Сбрасывать индикатор при смене чата */
     chatId?: string | null;
+    /** Пользовательский лимит из активного LLM-профиля */
+    configuredContextWindow?: number | null;
+    /** Принимаем новые usage-события только во время активной генерации */
+    isLoading?: boolean;
 }
 
 function formatTokens(n: number): string {
@@ -27,7 +25,13 @@ function formatWindow(n: number): string {
     return String(n);
 }
 
-export function ContextUsageBar({ onNewChat, profileId, chatId }: ContextUsageBarProps) {
+export function ContextUsageBar({
+    onNewChat,
+    profileId,
+    chatId,
+    configuredContextWindow,
+    isLoading = false,
+}: ContextUsageBarProps) {
     const [usage, setUsage] = useState<ContextUsagePayload | null>(null);
 
     // Сброс при смене профиля или чата
@@ -38,30 +42,33 @@ export function ContextUsageBar({ onNewChat, profileId, chatId }: ContextUsageBa
     // Подписка на Tauri event
     useEffect(() => {
         const unlisten = listen<ContextUsagePayload>('context-usage', (event) => {
+            if (!isLoading) return;
             setUsage(event.payload);
         });
         return () => {
             unlisten.then(fn => fn());
         };
-    }, []);
+    }, [isLoading]);
 
-    if (!usage || usage.context_window === 0) return null;
+    const display = resolveContextUsageDisplay(usage, configuredContextWindow);
 
-    const { estimated_tokens, context_window, percent, warning_level } = usage;
+    if (!display) return null;
+
+    const { estimatedTokens, contextWindow, percent, warningLevel } = display;
 
     const trackColor =
-        warning_level === 'critical' ? 'bg-red-500/20' :
-        warning_level === 'warning'  ? 'bg-yellow-500/20' :
+        warningLevel === 'critical' ? 'bg-red-500/20' :
+        warningLevel === 'warning'  ? 'bg-yellow-500/20' :
                                        'bg-zinc-700/40';
 
     const fillColor =
-        warning_level === 'critical' ? 'bg-red-500' :
-        warning_level === 'warning'  ? 'bg-yellow-500' :
+        warningLevel === 'critical' ? 'bg-red-500' :
+        warningLevel === 'warning'  ? 'bg-yellow-500' :
                                        'bg-zinc-500';
 
     const textColor =
-        warning_level === 'critical' ? 'text-red-400' :
-        warning_level === 'warning'  ? 'text-yellow-400' :
+        warningLevel === 'critical' ? 'text-red-400' :
+        warningLevel === 'warning'  ? 'text-yellow-400' :
                                        'text-zinc-500';
 
     return (
@@ -77,11 +84,11 @@ export function ContextUsageBar({ onNewChat, profileId, chatId }: ContextUsageBa
 
                 {/* Текст */}
                 <span className={`text-[10px] font-mono flex-shrink-0 ${textColor}`}>
-                    {formatTokens(estimated_tokens)} / {formatWindow(context_window)}
+                    {formatTokens(estimatedTokens)} / {formatWindow(contextWindow)}
                 </span>
 
                 {/* Иконка + кнопка при критическом уровне */}
-                {warning_level === 'critical' && (
+                {warningLevel === 'critical' && (
                     <div className="flex items-center gap-1 flex-shrink-0">
                         <AlertTriangle className="w-3 h-3 text-red-400" />
                         {onNewChat && (
