@@ -146,12 +146,6 @@ export function cleanDiffArtifacts(content: string, originalCode?: string): stri
         || /<diff(?:\s+[^>]*)?>/.test(content)
         || /<search(?:\s+[^>]*)?>[\s\S]*?<\/search>\s*<replace(?:\s+[^>]*)?>/.test(content);
 
-    // Strip redundant BSL/1C code fences when diff blocks were present —
-    // the diff viewer owns the code display, so standalone code blocks are artifacts.
-    if (hasBlocks) {
-        cleaned = cleaned.replace(/```(?:bsl|1c|1с)[^\n]*\n[\s\S]*?```/gi, '');
-    }
-
     const result = cleaned.trim();
 
     if (!result && hasBlocks) {
