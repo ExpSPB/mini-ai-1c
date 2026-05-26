@@ -19,6 +19,7 @@ pub struct McpToolInfo {
     pub description: Option<String>,
     pub input_schema: Option<Value>,
     pub is_enabled: bool,
+    pub estimated_tokens: u32,
 }
 
 lazy_static! {
@@ -29,6 +30,61 @@ const MCP_TOOLS_CACHE_TTL_SECS: u64 = 300;
 const MCP_TOOLS_REQUEST_TIMEOUT_SECS: u64 = 8;
 const INTERNAL_BSL_SERVER_ID: &str = "bsl-ls";
 
+fn estimate_text_tokens(text: &str) -> u32 {
+    if text.is_empty() {
+        0
+    } else {
+        ((text.chars().count() as u32) + 3) / 4
+    }
+}
+
+fn sanitize_tool_name(name: &str) -> String {
+    name.chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .collect()
+}
+
+fn normalized_tool_parameters(input_schema: &Value) -> Value {
+    let mut parameters = input_schema.clone();
+    if !parameters.is_object() {
+        return serde_json::json!({
+            "type": "object",
+            "properties": {}
+        });
+    }
+
+    if let Some(obj) = parameters.as_object_mut() {
+        if !obj.contains_key("type") {
+            obj.insert("type".to_string(), serde_json::json!("object"));
+        }
+        if !obj.contains_key("properties") {
+            obj.insert("properties".to_string(), serde_json::json!({}));
+        }
+    }
+
+    parameters
+}
+
+fn estimate_mcp_tool_tokens(tool: &McpTool) -> u32 {
+    let name = sanitize_tool_name(&tool.name);
+    if name.is_empty() {
+        return 0;
+    }
+
+    let payload = serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": tool.description,
+            "parameters": normalized_tool_parameters(&tool.input_schema)
+        }
+    });
+
+    serde_json::to_string(&payload)
+        .map(|text| estimate_text_tokens(&text))
+        .unwrap_or(0)
+}
+
 fn unavailable_tool(server_name: String, message: String) -> Vec<McpToolInfo> {
     vec![McpToolInfo {
         server_name,
@@ -36,6 +92,7 @@ fn unavailable_tool(server_name: String, message: String) -> Vec<McpToolInfo> {
         description: Some(message),
         input_schema: None,
         is_enabled: false,
+        estimated_tokens: 0,
     }]
 }
 
@@ -69,6 +126,7 @@ async fn collect_server_tools(config: McpServerConfig) -> Vec<McpToolInfo> {
             .into_iter()
             .map(|tool| McpToolInfo {
                 server_name: server_name.clone(),
+                estimated_tokens: estimate_mcp_tool_tokens(&tool),
                 tool_name: tool.name,
                 description: Some(tool.description),
                 input_schema: Some(tool.input_schema),
@@ -351,4 +409,65 @@ fn fnv_hash_path(s: &str) -> u64 {
         hash ^= byte as u64;
     }
     hash
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn estimate_mcp_tool_tokens_uses_serialized_chat_tool_payload() {
+        let tool = McpTool {
+            name: "find_symbol".to_string(),
+            description: "Find symbol by name".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" }
+                }
+            }),
+        };
+        let expected_payload = json!({
+            "type": "function",
+            "function": {
+                "name": "find_symbol",
+                "description": "Find symbol by name",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" }
+                    }
+                }
+            }
+        });
+        let expected_json = serde_json::to_string(&expected_payload).unwrap();
+        let expected_tokens = ((expected_json.chars().count() as u32) + 3) / 4;
+
+        assert_eq!(estimate_mcp_tool_tokens(&tool), expected_tokens);
+    }
+
+    #[test]
+    fn estimate_mcp_tool_tokens_normalizes_non_object_schema() {
+        let tool = McpTool {
+            name: "ping".to_string(),
+            description: "Ping server".to_string(),
+            input_schema: json!(true),
+        };
+        let expected_payload = json!({
+            "type": "function",
+            "function": {
+                "name": "ping",
+                "description": "Ping server",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        });
+        let expected_json = serde_json::to_string(&expected_payload).unwrap();
+        let expected_tokens = ((expected_json.chars().count() as u32) + 3) / 4;
+
+        assert_eq!(estimate_mcp_tool_tokens(&tool), expected_tokens);
+    }
 }
