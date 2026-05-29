@@ -964,6 +964,7 @@ impl McpSession {
         let rpc_requires_initialize = rpc_error_text.contains("initialize")
             || rpc_error_text.contains("initialized")
             || rpc_error_text.contains("mcp-session-id")
+            || rpc_error_text.contains("missing session")
             || (rpc_error_text.contains("session") && rpc_error_text.contains("mcp"));
 
         if rpc_requires_initialize {
@@ -972,6 +973,7 @@ impl McpSession {
 
         let body_requires_initialize = body_text.contains("streamable http")
             || body_text.contains("mcp-session-id")
+            || body_text.contains("missing session")
             || body_text.contains("initialize")
             || body_text.contains("initialized")
             || (body_text.contains("session") && body_text.contains("mcp"));
@@ -2074,6 +2076,27 @@ mod tests {
             }),
             session_id: None,
             final_url: "http://localhost/mcp".to_string(),
+        };
+
+        assert!(McpSession::should_retry_with_initialize(&response));
+    }
+
+    #[test]
+    fn detects_initialize_requirement_from_missing_session_id_rpc_error() {
+        let response = HttpRpcResponse {
+            status: reqwest::StatusCode::BAD_REQUEST,
+            body: r#"{"jsonrpc":"2.0","id":"server-error","error":{"code":-32600,"message":"Bad Request: Missing session ID"}}"#.to_string(),
+            rpc_response: Some(JsonRpcResponse {
+                _jsonrpc: "2.0".to_string(),
+                result: None,
+                error: Some(JsonRpcError {
+                    code: -32600,
+                    message: "Bad Request: Missing session ID".to_string(),
+                }),
+                id: Some(1),
+            }),
+            session_id: None,
+            final_url: "http://localhost/mcp/".to_string(),
         };
 
         assert!(McpSession::should_retry_with_initialize(&response));
