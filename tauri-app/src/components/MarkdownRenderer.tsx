@@ -74,15 +74,19 @@ export function cleanDiffArtifacts(content: string, originalCode?: string): stri
         cleaned = cleaned.split(qwenFnMatch[0])[0];
     }
 
-    // 1. Удаляем малформед блоки: =======\nКОНТЕНТ\n>>>>>>> REPLACE без <<<<<<< SEARCH
+    // 1. Сначала скрываем завершенные legacy SEARCH/REPLACE-блоки.
+    // Если обработать malformed-хвосты раньше, SEARCH-часть блока останется видимой в чате.
+    cleaned = cleaned.replace(/^<{5,10}[ \t]+SEARCH[ \t]*\r?\n[\s\S]*?^={7}[ \t]*\r?\n[\s\S]*?^>{5,10}[ \t]+REPLACE[ \t]*$/gm, '');
+
+    // 2. Удаляем малформед блоки: =======\nКОНТЕНТ\n>>>>>>> REPLACE без <<<<<<< SEARCH
     // Qwen Coder иногда пропускает SEARCH-часть и генерирует только REPLACE
     cleaned = cleaned.replace(/^={7}[\s\S]*?^>{5,10}\s+REPLACE\s*$/gm, '');
 
-    // 2. Очищаем одиночные разделители ======= (невалидные полу-диффы без SEARCH/REPLACE)
+    // 3. Очищаем одиночные разделители ======= (невалидные полу-диффы без SEARCH/REPLACE)
     // Такой разделитель без <<<<<<< SEARCH и >>>>>>> REPLACE — мусор от модели
     cleaned = cleaned.replace(/^={7}\s*$/gm, '');
 
-    // 3. Удаляем специфические префиксы, которые иногда добавляет ЛЛМ
+    // 4. Удаляем специфические префиксы, которые иногда добавляет ЛЛМ
     const metaPhrases = [
         /Ниже приведены исправления в формате SEARCH\/REPLACE:?/gi,
         /Ниже приведены исправления в формате «Поиск\/Замена»:?/gi,
@@ -94,12 +98,9 @@ export function cleanDiffArtifacts(content: string, originalCode?: string): stri
         cleaned = cleaned.replace(phrase, '');
     }
 
-    // 4. Скрываем завершенные блоки (match 5-10 chevrons)
-    cleaned = cleaned.replace(/<{5,10} SEARCH[\s\S]*?>{5,10} REPLACE/g, '');
-
     // 5. Скрываем незавершенные блоки при стриминге или обрыве
-    cleaned = cleaned.replace(/<{5,10} SEARCH[\s\S]*?={7}[\s\S]*?(?:\n|$)/g, '');
-    cleaned = cleaned.replace(/<{5,10} SEARCH[\s\S]*?(?:\n|$)/g, '');
+    cleaned = cleaned.replace(/^<{5,10}[ \t]+SEARCH[ \t]*\r?\n[\s\S]*?^={7}[ \t]*\r?\n[\s\S]*$/m, '');
+    cleaned = cleaned.replace(/^<{5,10}[ \t]+SEARCH[ \t]*\r?\n[\s\S]*$/m, '');
 
     // 6. Удаляем одиночные строки из шевронов и маркеры REPLACE/SEARCH
     cleaned = cleaned.replace(/^<{5,10}\s*$/gm, '');
