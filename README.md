@@ -10,15 +10,12 @@
 <!-- news:end -->
 
 <!-- release-news:start -->
-> **📋 Последний релиз: версия 1.2.8** — 26 мая 2026
+> **📋 Последний релиз: версия 1.2.9** — 29 мая 2026
 >
-> - **HTTP-прокси для всех LLM-провайдеров**: системный/ручной режим с аутентификацией для Anthropic, OpenAI, Codex, Напарника и загрузки BSL LS ([#134](https://github.com/hawkxtreme/mini-ai-1c/issues/134))
-> - **Редактируемые промпты quick actions**: команды Ctrl+Shift+1 (`/исправить`, `/описание` и др.) теперь правятся прямо в настройках Slash-команд ([#158](https://github.com/hawkxtreme/mini-ai-1c/issues/158))
-> - **Производительность чата**: кеш применимости диффов и отложенное распространение изменений снимают фризы при печати в длинных чатах ([#168](https://github.com/hawkxtreme/mini-ai-1c/issues/168), [#176](https://github.com/hawkxtreme/mini-ai-1c/issues/176))
-> - **Автопрокрутка**: чат остаётся «прикреплён» к низу во время стриминга ответа модели ([#163](https://github.com/hawkxtreme/mini-ai-1c/issues/163))
-> - **Стабильность настроек**: API-ключ не теряется при автообновлении профиля, дополнительные правила учитываются и в lightweight-промпте ([#162](https://github.com/hawkxtreme/mini-ai-1c/issues/162), [#160](https://github.com/hawkxtreme/mini-ai-1c/issues/160))
+> - **Подключение MCP-серверов**: исправлен обрыв с ошибкой `Missing session ID` (-32600) — клиент теперь автоматически выполняет повторный initialize-handshake ([#194](https://github.com/hawkxtreme/mini-ai-1c/issues/194))
+> - **Чистый вывод Напарника**: завершённые блоки SEARCH/REPLACE больше не «протекают» в чат — области кода преобразуются корректно ([#191](https://github.com/hawkxtreme/mini-ai-1c/issues/191))
 >
-> [Подробнее о релизе →](https://github.com/hawkxtreme/mini-ai-1c/releases/tag/v1.2.8) · [Все релизы →](https://github.com/hawkxtreme/mini-ai-1c/releases)
+> [Подробнее о релизе →](https://github.com/hawkxtreme/mini-ai-1c/releases/tag/v1.2.9) · [Все релизы →](https://github.com/hawkxtreme/mini-ai-1c/releases)
 <!-- release-news:end -->
 
 > 🐛 **Нашли баг или есть вопрос?** Прочитайте [как правильно сообщить о проблеме →](how-to-report-an-issue.md) — там пошагово: что написать, как снять логи приложения и MCP-логи, и готовый шаблон issue.
