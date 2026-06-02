@@ -159,6 +159,7 @@ export interface AppSettings {
     };
     mcp_servers: McpServerConfig[];
     node_path: string;
+    search_index_dir: string;
     proxy?: ProxySettings;
     active_llm_profile: string;
     debug_mode: boolean;

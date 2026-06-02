@@ -375,10 +375,7 @@ pub async fn delete_search_index(config_path: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn open_search_index_dir(app_handle: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
-    let dir = dirs::data_dir()
-        .ok_or("Не удалось определить директорию данных")?
-        .join("com.mini-ai-1c")
-        .join("search-index");
+    let dir = search_index_dir().ok_or("Не удалось определить директорию данных")?;
     std::fs::create_dir_all(&dir).ok();
     app_handle
         .opener()
@@ -386,14 +383,24 @@ pub async fn open_search_index_dir(app_handle: tauri::AppHandle) -> Result<(), S
         .map_err(|e| format!("Не удалось открыть папку: {}", e))
 }
 
+fn search_index_dir() -> Option<std::path::PathBuf> {
+    resolve_search_index_dir(&load_settings().search_index_dir)
+}
+
+fn resolve_search_index_dir(configured_dir: &str) -> Option<std::path::PathBuf> {
+    let configured_dir = configured_dir.trim();
+    if !configured_dir.is_empty() {
+        return Some(std::path::PathBuf::from(configured_dir));
+    }
+
+    dirs::data_dir().map(|data_dir| data_dir.join("com.mini-ai-1c").join("search-index"))
+}
+
 /// Compute the db path for a given config path (mirrors mcp-1c-search::index::get_db_path).
 fn search_index_db_path(config_path: &str) -> std::path::PathBuf {
     let hash = fnv_hash_path(config_path);
-    if let Some(data_dir) = dirs::data_dir() {
-        data_dir
-            .join("com.mini-ai-1c")
-            .join("search-index")
-            .join(format!("{:016x}.db", hash))
+    if let Some(dir) = search_index_dir() {
+        dir.join(format!("{:016x}.db", hash))
     } else {
         std::path::PathBuf::from(config_path)
             .join(".mcp-index")
@@ -469,5 +476,13 @@ mod tests {
         let expected_tokens = ((expected_json.chars().count() as u32) + 3) / 4;
 
         assert_eq!(estimate_mcp_tool_tokens(&tool), expected_tokens);
+    }
+
+    #[test]
+    fn resolve_search_index_dir_uses_custom_setting() {
+        let dir = resolve_search_index_dir(r" D:\cfg\erp\search-index ")
+            .expect("custom search-index directory should resolve");
+
+        assert_eq!(dir, std::path::PathBuf::from(r"D:\cfg\erp\search-index"));
     }
 }

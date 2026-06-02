@@ -404,6 +404,9 @@ pub struct AppSettings {
         skip_serializing_if = "is_default_node_path"
     )]
     pub node_path: String,
+    /// Directory for mcp-1c-search SQLite index files. Empty means default app data path.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub search_index_dir: String,
     #[serde(default)]
     pub proxy: ProxySettings,
     #[serde(default)]
@@ -914,6 +917,20 @@ mod tests {
             serde_json::from_value(json).expect("legacy settings should deserialize");
 
         assert_eq!(settings.node_path, "node");
+    }
+
+    #[test]
+    fn legacy_settings_deserialize_search_index_dir_to_empty() {
+        let mut json = serde_json::to_value(AppSettings::default())
+            .expect("default settings should serialize to json");
+        json.as_object_mut()
+            .expect("settings should be an object")
+            .remove("search_index_dir");
+
+        let settings: AppSettings =
+            serde_json::from_value(json).expect("legacy settings should deserialize");
+
+        assert_eq!(settings.search_index_dir, "");
     }
 
     #[test]
