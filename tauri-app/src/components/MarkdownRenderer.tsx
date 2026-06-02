@@ -6,6 +6,7 @@ import { BslEditor } from './ui/BslEditor';
 import { BslDiffEditor } from './ui/BslDiffEditor';
 import { normalizeBslIndent } from '../utils/diffViewer';
 import { decodeHtmlEntities } from '../utils/htmlEntities';
+import { sanitizeModelMarkdown } from '../utils/modelOutputSanitizer';
 import { useState, useMemo, memo, useCallback } from 'react';
 
 function useCopy(text: string) {
@@ -147,7 +148,13 @@ export function cleanDiffArtifacts(content: string, originalCode?: string): stri
         || /<diff(?:\s+[^>]*)?>/.test(content)
         || /<search(?:\s+[^>]*)?>[\s\S]*?<\/search>\s*<replace(?:\s+[^>]*)?>/.test(content);
 
-    const result = cleaned.trim();
+    // Strip redundant BSL/1C code fences when diff blocks were present —
+    // the diff viewer owns the code display, so standalone code blocks are artifacts.
+    if (hasBlocks) {
+        cleaned = cleaned.replace(/```(?:bsl|1c|1с)[^\n]*\n[\s\S]*?```/gi, '');
+    }
+
+    const result = sanitizeModelMarkdown(cleaned);
 
     if (!result && hasBlocks) {
         return '';
