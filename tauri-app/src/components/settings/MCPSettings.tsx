@@ -1101,6 +1101,30 @@ export function MCPSettings({
                                                     };
                                                     return (
                                                         <div className="space-y-3">
+                                                            <div className="rounded-lg border border-zinc-700/50 bg-zinc-900/30 p-3">
+                                                                <label className="text-[10px] text-zinc-500 uppercase font-bold flex items-center gap-1 mb-1">
+                                                                    <Database className="w-3 h-3" /> Папка search-index
+                                                                </label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={searchIndexDir}
+                                                                        onChange={(e) => onSearchIndexDirChange(e.target.value)}
+                                                                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono min-w-0"
+                                                                        placeholder="По умолчанию: AppData\\com.mini-ai-1c\\search-index"
+                                                                    />
+                                                                    <button
+                                                                        onClick={browseSearchIndexDir}
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-zinc-100 rounded-lg text-xs font-medium transition shrink-0"
+                                                                        title="Выбрать папку search-index"
+                                                                    >
+                                                                        <FolderOpen className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                                <p className="text-[10px] text-zinc-600 mt-1">
+                                                                    SQLite-файлы индекса будут храниться в этой папке. Если путь не указан, используется папка по умолчанию.
+                                                                </p>
+                                                            </div>
                                                             <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
                                                                 <div>
                                                                     <label className="text-[10px] text-zinc-500 uppercase font-bold flex items-center gap-1 mb-1">
@@ -1216,30 +1240,6 @@ export function MCPSettings({
                                                                     </div>
                                                                 )}
                                                                 <p className="text-[10px] text-zinc-600 mt-1">Корневая директория основной выгрузки (содержит CommonModules, Documents и т.д.)</p>
-                                                            </div>
-                                                            <div>
-                                                                <label className="text-[10px] text-zinc-500 uppercase font-bold flex items-center gap-1 mb-1">
-                                                                    <Database className="w-3 h-3" /> Папка search-index
-                                                                </label>
-                                                                <div className="flex gap-2">
-                                                                    <input
-                                                                        type="text"
-                                                                        value={searchIndexDir}
-                                                                        onChange={(e) => onSearchIndexDirChange(e.target.value)}
-                                                                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono min-w-0"
-                                                                        placeholder="По умолчанию: AppData\\com.mini-ai-1c\\search-index"
-                                                                    />
-                                                                    <button
-                                                                        onClick={browseSearchIndexDir}
-                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-zinc-100 rounded-lg text-xs font-medium transition shrink-0"
-                                                                        title="Выбрать папку search-index"
-                                                                    >
-                                                                        <FolderOpen className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                </div>
-                                                                <p className="text-[10px] text-zinc-600 mt-1">
-                                                                    SQLite-файлы индекса будут храниться в этой папке; пустое поле оставляет стандартный путь.
-                                                                </p>
                                                             </div>
                                                             <div className="rounded-lg border border-zinc-700/50 bg-zinc-900/30 p-3 space-y-2">
                                                                 <div className="flex items-center justify-between gap-2">
