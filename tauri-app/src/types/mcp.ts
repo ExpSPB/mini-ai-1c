@@ -4,6 +4,7 @@ export interface McpToolInfo {
   description: string | null;
   input_schema: Record<string, unknown> | null;
   is_enabled: boolean;
+  estimated_tokens: number;
 }
 
 export interface McpToolSummary {

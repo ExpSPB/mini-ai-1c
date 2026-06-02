@@ -2,7 +2,8 @@ import { useEffect, useState, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { McpToolInfo } from '@/types/mcp';
 import type { McpServerConfig } from '@/types/settings';
-import { Info, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+import { formatMcpTokenCount, summarizeMcpTokenUsage } from '@/utils/mcpTokenUsage';
 
 interface Props {
     onToolSelect: (toolName: string) => void;
@@ -89,6 +90,7 @@ export default function McpToolsPopover({
         acc[t.server_name].push(t);
         return acc;
     }, {});
+    const tokenUsage = summarizeMcpTokenUsage(tools);
 
     return (
         <div
@@ -96,7 +98,14 @@ export default function McpToolsPopover({
             className="absolute bottom-full right-0 mb-2 w-[420px] bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-bottom-2 duration-200"
         >
             <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
-                <div className="text-sm font-semibold text-zinc-200">MCP Tools</div>
+                <div className="min-w-0">
+                    <div className="text-sm font-semibold text-zinc-200">MCP Tools</div>
+                    {!loading && !error && tokenUsage.totalTools > 0 && (
+                        <div className="mt-0.5 text-[10px] font-mono text-zinc-500">
+                            Всего: ≈{formatMcpTokenCount(tokenUsage.totalEstimatedTokens)} токенов · {tokenUsage.totalTools} tools
+                        </div>
+                    )}
+                </div>
                 <div className="flex items-center gap-2">
                     <button onClick={() => fetchTools(true)} className="p-1 rounded hover:bg-zinc-800" title="Refresh">
                         <RefreshCw className="w-3.5 h-3.5 text-zinc-400" />
@@ -114,7 +123,14 @@ export default function McpToolsPopover({
                 )}
                 {!loading && !error && Object.entries(grouped).map(([server, arr]) => (
                     <div key={server} className="border-b border-zinc-800/50 last:border-b-0">
-                        <div className="px-3 py-1.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider bg-zinc-900/50">{server}</div>
+                        <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-zinc-900/50">
+                            <div className="min-w-0 truncate text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{server}</div>
+                            {tokenUsage.byServerName[server] && (
+                                <div className="shrink-0 text-[10px] font-mono text-zinc-500">
+                                    ≈{formatMcpTokenCount(tokenUsage.byServerName[server].estimatedTokens)}
+                                </div>
+                            )}
+                        </div>
                         <div className="flex flex-col">
                             {arr.map(t => (
                                 <button
@@ -129,6 +145,14 @@ export default function McpToolsPopover({
                                         )}
                                     </div>
                                     <div className="ml-2 flex items-center gap-1.5 flex-shrink-0">
+                                        {t.estimated_tokens > 0 && (
+                                            <span
+                                                className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500"
+                                                title="Оценка токенов tool payload"
+                                            >
+                                                ≈{formatMcpTokenCount(t.estimated_tokens)}
+                                            </span>
+                                        )}
                                         <div className={`w-2 h-2 rounded-full ${t.is_enabled ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
                                     </div>
                                 </button>
