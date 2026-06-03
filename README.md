@@ -10,12 +10,15 @@
 <!-- news:end -->
 
 <!-- release-news:start -->
-> **📋 Последний релиз: версия 1.2.9** — 29 мая 2026
+> **📋 Последний релиз: версия 1.2.10** — 3 июня 2026
 >
-> - **Подключение MCP-серверов**: исправлен обрыв с ошибкой `Missing session ID` (-32600) — клиент теперь автоматически выполняет повторный initialize-handshake ([#194](https://github.com/hawkxtreme/mini-ai-1c/issues/194))
-> - **Чистый вывод Напарника**: завершённые блоки SEARCH/REPLACE больше не «протекают» в чат — области кода преобразуются корректно ([#191](https://github.com/hawkxtreme/mini-ai-1c/issues/191))
+> - **Счётчик токенов MCP**: видно, сколько токенов контекста добавляет каждый подключённый MCP-сервер и его инструменты ([#173](https://github.com/hawkxtreme/mini-ai-1c/issues/173))
+> - **Блоки кода в чате**: больше не исчезают после завершения ответа модели ([#184](https://github.com/hawkxtreme/mini-ai-1c/issues/184))
+> - **Чистый Markdown**: вывод модели очищается от необработанных служебных тегов ([#179](https://github.com/hawkxtreme/mini-ai-1c/issues/179), [#187](https://github.com/hawkxtreme/mini-ai-1c/issues/187))
+> - **Путь к search-index**: каталог индекса поиска можно разместить в произвольном месте ([#178](https://github.com/hawkxtreme/mini-ai-1c/issues/178))
+> - **Контекст и параметры команд**: исправлено отображение длины контекста ([#182](https://github.com/hawkxtreme/mini-ai-1c/issues/182)) и применение доп. параметров ([#186](https://github.com/hawkxtreme/mini-ai-1c/issues/186))
 >
-> [Подробнее о релизе →](https://github.com/hawkxtreme/mini-ai-1c/releases/tag/v1.2.9) · [Все релизы →](https://github.com/hawkxtreme/mini-ai-1c/releases)
+> [Подробнее о релизе →](https://github.com/hawkxtreme/mini-ai-1c/releases/tag/v1.2.10) · [Все релизы →](https://github.com/hawkxtreme/mini-ai-1c/releases)
 <!-- release-news:end -->
 
 > 🐛 **Нашли баг или есть вопрос?** Прочитайте [как правильно сообщить о проблеме →](how-to-report-an-issue.md) — там пошагово: что написать, как снять логи приложения и MCP-логи, и готовый шаблон issue.
