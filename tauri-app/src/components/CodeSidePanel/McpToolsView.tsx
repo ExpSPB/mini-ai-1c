@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { McpToolInfo } from '@/types/mcp';
 import type { McpServerConfig } from '@/types/settings';
 import { Wrench, RefreshCw, Info, AlertCircle } from 'lucide-react';
+import { formatMcpTokenCount, summarizeMcpTokenUsage } from '@/utils/mcpTokenUsage';
 
 interface McpToolsViewProps {
     serverName?: string | null;
@@ -62,6 +63,7 @@ export function McpToolsView({
         acc[t.server_name].push(t);
         return acc;
     }, {});
+    const tokenUsage = summarizeMcpTokenUsage(tools);
 
     if (loading) {
         return <div className="p-4"><div className="text-sm text-zinc-500">Loading MCP tools...</div></div>;
@@ -84,8 +86,15 @@ export function McpToolsView({
     return (
         <div className="p-3 overflow-auto max-h-full">
             <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Wrench className="w-4 h-4" /> MCP Tools
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                        <Wrench className="w-4 h-4" /> MCP Tools
+                    </div>
+                    {tokenUsage.totalTools > 0 && (
+                        <div className="mt-1 text-[11px] font-mono text-zinc-500">
+                            Всего: ≈{formatMcpTokenCount(tokenUsage.totalEstimatedTokens)} токенов · {tokenUsage.totalTools} tools
+                        </div>
+                    )}
                 </div>
                 <div>
                     <button onClick={() => fetchTools(true)} className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-sm flex items-center gap-2">
@@ -98,6 +107,11 @@ export function McpToolsView({
                     <div key={server} className="border border-zinc-800 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2">
                             <div className="text-sm font-semibold">{server}</div>
+                            {tokenUsage.byServerName[server] && (
+                                <div className="rounded bg-zinc-900 px-2 py-1 text-[11px] font-mono text-zinc-500">
+                                    ≈{formatMcpTokenCount(tokenUsage.byServerName[server].estimatedTokens)} токенов
+                                </div>
+                            )}
                         </div>
                         <div className="grid grid-cols-1 gap-2">
                             {grouped[server].map(tool => {
@@ -149,6 +163,14 @@ export function McpToolsView({
                                                 </div>
                                             </div>
                                             <div className="ml-3 flex items-center gap-2">
+                                                {tool.estimated_tokens > 0 && (
+                                                    <span
+                                                        className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500"
+                                                        title="Оценка токенов tool payload"
+                                                    >
+                                                        ≈{formatMcpTokenCount(tool.estimated_tokens)}
+                                                    </span>
+                                                )}
                                                 <div className={`w-2.5 h-2.5 rounded-full ${tool.is_enabled ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
                                                 <button
                                                     className="text-zinc-400 hover:text-zinc-200 p-1"

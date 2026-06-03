@@ -796,6 +796,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             const { payloadMessages, indicator } = await buildCompressedPayload(nextMessages, userMessage, contextPayload);
             setCompressionIndicator(indicator);
 
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
             await api.streamChat(payloadMessages);
         } catch (err) {
             setMessages(prev => {
@@ -965,6 +966,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             const { payloadMessages, indicator } = await buildCompressedPayload(nextMessages, editedMessage, contextPayload);
             setCompressionIndicator(indicator);
 
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
             await api.streamChat(payloadMessages);
         } catch (err) {
             setMessages(prev => {

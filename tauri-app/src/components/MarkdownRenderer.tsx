@@ -6,6 +6,7 @@ import { BslEditor } from './ui/BslEditor';
 import { BslDiffEditor } from './ui/BslDiffEditor';
 import { normalizeBslIndent } from '../utils/diffViewer';
 import { decodeHtmlEntities } from '../utils/htmlEntities';
+import { sanitizeModelMarkdown } from '../utils/modelOutputSanitizer';
 import { useState, useMemo, memo, useCallback } from 'react';
 
 function useCopy(text: string) {
@@ -153,7 +154,7 @@ export function cleanDiffArtifacts(content: string, originalCode?: string): stri
         cleaned = cleaned.replace(/```(?:bsl|1c|1с)[^\n]*\n[\s\S]*?```/gi, '');
     }
 
-    const result = cleaned.trim();
+    const result = sanitizeModelMarkdown(cleaned);
 
     if (!result && hasBlocks) {
         return '';

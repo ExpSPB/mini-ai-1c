@@ -156,11 +156,22 @@ pub struct SymbolMatch {
 
 /// Derive database path from config root.
 /// Stored in AppData\com.mini-ai-1c\search-index\{hash}.db
+const SEARCH_INDEX_DIR_ENV: &str = "MINI_AI_1C_SEARCH_INDEX_DIR";
+
+fn configured_search_index_dir() -> Option<PathBuf> {
+    std::env::var_os(SEARCH_INDEX_DIR_ENV)
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
+}
+
+fn default_search_index_dir() -> Option<PathBuf> {
+    dirs::data_dir().map(|data_dir| data_dir.join("com.mini-ai-1c").join("search-index"))
+}
+
 pub fn get_db_path(config_root: &Path) -> PathBuf {
     let path_str = config_root.to_string_lossy();
     let hash = fnv_hash(&path_str);
-    if let Some(data_dir) = dirs::data_dir() {
-        let dir = data_dir.join("com.mini-ai-1c").join("search-index");
+    if let Some(dir) = configured_search_index_dir().or_else(default_search_index_dir) {
         let _ = fs::create_dir_all(&dir);
         dir.join(format!("{:016x}.db", hash))
     } else {
@@ -1170,6 +1181,9 @@ fn sync_semantic_fts(conn: &Connection, deleted: &[String], parsed: &[ParsedFile
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static SEARCH_INDEX_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn ensure_schema_quarantines_corrupt_sqlite_file() {
@@ -1207,6 +1221,31 @@ mod tests {
 
         drop(conn);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn get_db_path_uses_custom_search_index_dir_from_env() {
+        let _guard = SEARCH_INDEX_ENV_LOCK.lock().expect("env test lock");
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let custom_dir =
+            std::env::temp_dir().join(format!("mcp-1c-search-custom-index-{}", unique));
+        let config_root = Path::new(r"D:\cfg\erp");
+
+        std::env::set_var("MINI_AI_1C_SEARCH_INDEX_DIR", &custom_dir);
+        let db_path = get_db_path(config_root);
+        std::env::remove_var("MINI_AI_1C_SEARCH_INDEX_DIR");
+
+        assert_eq!(db_path.parent(), Some(custom_dir.as_path()));
+        assert_eq!(db_path.extension().and_then(|ext| ext.to_str()), Some("db"));
+        assert!(
+            custom_dir.exists(),
+            "configured search-index directory should be created"
+        );
+
+        let _ = fs::remove_dir_all(&custom_dir);
     }
 }
 

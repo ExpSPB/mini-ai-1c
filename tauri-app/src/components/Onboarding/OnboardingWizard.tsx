@@ -130,6 +130,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
                     auto_download: true
                 },
                 node_path: "node",
+                search_index_dir: "",
                 mcp_servers: [],
                 onboarding_completed: false,
                 debug_mode: false,

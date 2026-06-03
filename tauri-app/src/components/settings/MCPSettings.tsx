@@ -172,8 +172,10 @@ export interface McpServerStatus {
 interface MCPSettingsProps {
     servers: McpServerConfig[];
     nodePath: string;
+    searchIndexDir: string;
     bslEnabled?: boolean;
     onUpdate: (servers: McpServerConfig[]) => void;
+    onSearchIndexDirChange: (path: string) => void;
 }
 
 const BUILTIN_1C_SERVER_ID = 'builtin-1c-naparnik';
@@ -259,7 +261,14 @@ const buildSearchEnv = (
     };
 };
 
-export function MCPSettings({ servers, nodePath, bslEnabled, onUpdate }: MCPSettingsProps) {
+export function MCPSettings({
+    servers,
+    nodePath,
+    searchIndexDir,
+    bslEnabled,
+    onUpdate,
+    onSearchIndexDirChange,
+}: MCPSettingsProps) {
     const [testingId, setTestingId] = useState<string | null>(null);
     const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
     const [statuses, setStatuses] = useState<Record<string, McpServerStatus>>({});
@@ -1024,6 +1033,16 @@ export function MCPSettings({ servers, nodePath, bslEnabled, onUpdate }: MCPSett
                                                             console.error('Failed to open directory dialog:', e);
                                                         }
                                                     };
+                                                    const browseSearchIndexDir = async () => {
+                                                        try {
+                                                            const dir = await open({ directory: true, multiple: false, title: 'Выберите папку для search-index' });
+                                                            if (dir && typeof dir === 'string') {
+                                                                onSearchIndexDirChange(dir);
+                                                            }
+                                                        } catch (e) {
+                                                            console.error('Failed to open search index directory dialog:', e);
+                                                        }
+                                                    };
                                                     const selectFromHistory = (p: string) => {
                                                         updateActiveProfile({ main_path: p });
                                                         setShowSearchHistory(false);
@@ -1082,6 +1101,30 @@ export function MCPSettings({ servers, nodePath, bslEnabled, onUpdate }: MCPSett
                                                     };
                                                     return (
                                                         <div className="space-y-3">
+                                                            <div className="rounded-lg border border-zinc-700/50 bg-zinc-900/30 p-3">
+                                                                <label className="text-[10px] text-zinc-500 uppercase font-bold flex items-center gap-1 mb-1">
+                                                                    <Database className="w-3 h-3" /> Папка search-index
+                                                                </label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={searchIndexDir}
+                                                                        onChange={(e) => onSearchIndexDirChange(e.target.value)}
+                                                                        className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 focus:outline-none font-mono min-w-0"
+                                                                        placeholder="По умолчанию: AppData\\com.mini-ai-1c\\search-index"
+                                                                    />
+                                                                    <button
+                                                                        onClick={browseSearchIndexDir}
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 hover:text-zinc-100 rounded-lg text-xs font-medium transition shrink-0"
+                                                                        title="Выбрать папку search-index"
+                                                                    >
+                                                                        <FolderOpen className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                                <p className="text-[10px] text-zinc-600 mt-1">
+                                                                    SQLite-файлы индекса будут храниться в этой папке. Если путь не указан, используется папка по умолчанию.
+                                                                </p>
+                                                            </div>
                                                             <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
                                                                 <div>
                                                                     <label className="text-[10px] text-zinc-500 uppercase font-bold flex items-center gap-1 mb-1">

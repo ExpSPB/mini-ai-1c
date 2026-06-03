@@ -159,6 +159,7 @@ export interface AppSettings {
     };
     mcp_servers: McpServerConfig[];
     node_path: string;
+    search_index_dir: string;
     proxy?: ProxySettings;
     active_llm_profile: string;
     debug_mode: boolean;
@@ -308,6 +309,13 @@ export const DEFAULT_CUSTOM_PROMPTS: CustomPromptsSettings = {
             name: "Стандарты 1С",
             description: "Соблюдать стандарты разработки 1С и БСП",
             content: "Соблюдай стандарты разработки 1С и Библиотеки Стандартных Подсистем (БСП).",
+            enabled: false
+        },
+        {
+            id: "bsl-syntax",
+            name: "Синтаксис 1С",
+            description: "Контролировать синтаксис 1С",
+            content: "Контролируй синтаксис 1С. Если пользователь прислал BSL-код или ты предлагаешь BSL-код, перед финальным ответом проверь синтаксис через доступную проверку BSL/check_bsl_syntax и явно сообщи результат. Если код содержит синтаксические ошибки, не утверждай, что он корректен.",
             enabled: false
         }
     ]
