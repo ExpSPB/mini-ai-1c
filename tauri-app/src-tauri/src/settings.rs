@@ -577,23 +577,58 @@ pub struct CustomPromptsSettings {
     pub templates: Vec<PromptTemplate>,
 }
 
+fn default_custom_prompt_templates() -> Vec<PromptTemplate> {
+    vec![
+        PromptTemplate {
+            id: "bsl-standards".to_string(),
+            name: "Стандарты 1С".to_string(),
+            description: "Соблюдать стандарты разработки 1С и БСП".to_string(),
+            content:
+                "Соблюдай стандарты разработки 1С и Библиотеки стандартных подсистем (БСП)."
+                    .to_string(),
+            enabled: false,
+        },
+        PromptTemplate {
+            id: "bsl-syntax".to_string(),
+            name: "Синтаксис 1С".to_string(),
+            description: "Контролировать синтаксис 1С".to_string(),
+            content: "Контролируй синтаксис 1С. Если пользователь прислал BSL-код или ты предлагаешь BSL-код, перед финальным ответом проверь синтаксис через доступную проверку BSL/check_bsl_syntax и явно сообщи результат. Если код содержит синтаксические ошибки, не утверждай, что он корректен.".to_string(),
+            enabled: false,
+        },
+    ]
+}
+
 impl Default for CustomPromptsSettings {
     fn default() -> Self {
         Self {
             system_prefix: String::new(),
             on_code_change: String::new(),
             on_code_generate: String::new(),
-            templates: vec![PromptTemplate {
-                id: "bsl-standards".to_string(),
-                name: "Стандарты 1С".to_string(),
-                description: "Соблюдать стандарты разработки 1С и БСП".to_string(),
-                content:
-                    "Соблюдай стандарты разработки 1С и Библиотеки Стандартных Подсистем (БСП)."
-                        .to_string(),
-                enabled: false,
-            }],
+            templates: default_custom_prompt_templates(),
         }
     }
+}
+
+fn ensure_default_custom_prompt_templates(settings: &mut AppSettings) -> bool {
+    let defaults = default_custom_prompt_templates();
+    let existing_ids: std::collections::HashSet<String> = settings
+        .custom_prompts
+        .templates
+        .iter()
+        .map(|template| template.id.clone())
+        .collect();
+
+    let missing_templates: Vec<PromptTemplate> = defaults
+        .into_iter()
+        .filter(|template| !existing_ids.contains(&template.id))
+        .collect();
+
+    if missing_templates.is_empty() {
+        return false;
+    }
+
+    settings.custom_prompts.templates.extend(missing_templates);
+    true
 }
 
 pub fn clear_runtime_only_settings(settings: &mut AppSettings) -> bool {
@@ -771,6 +806,11 @@ pub fn load_settings() -> AppSettings {
 
     // Migration: ensure default slash commands exist
     if ensure_default_slash_commands(&mut settings) {
+        modified = true;
+    }
+
+    // Migration: ensure default custom prompt templates exist
+    if ensure_default_custom_prompt_templates(&mut settings) {
         modified = true;
     }
 
@@ -1021,5 +1061,21 @@ mod tests {
             .slash_commands
             .iter()
             .any(|cmd| cmd.id == "elaborate"));
+    }
+
+    #[test]
+    fn ensure_default_custom_prompt_templates_adds_bsl_syntax_rule() {
+        let mut settings = AppSettings::default();
+        settings
+            .custom_prompts
+            .templates
+            .retain(|template| template.id != "bsl-syntax");
+
+        assert!(ensure_default_custom_prompt_templates(&mut settings));
+        assert!(settings
+            .custom_prompts
+            .templates
+            .iter()
+            .any(|template| template.id == "bsl-syntax" && !template.enabled));
     }
 }

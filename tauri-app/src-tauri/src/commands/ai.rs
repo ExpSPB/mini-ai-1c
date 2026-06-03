@@ -263,6 +263,86 @@ fn assistant_message_has_meaningful_payload(message: &ApiMessage) -> bool {
             .is_some_and(|tool_calls| !tool_calls.is_empty())
 }
 
+fn custom_prompt_text_requests_bsl_syntax_check(text: &str) -> bool {
+    let normalized = text.to_lowercase();
+    normalized.contains("check_bsl_syntax")
+        || normalized.contains("bsl-syntax")
+        || normalized.contains("контролировать синтаксис")
+        || normalized.contains("проверь bsl")
+        || normalized.contains("проверить bsl")
+        || (normalized.contains("синтаксис")
+            && (normalized.contains("1с")
+                || normalized.contains("1c")
+                || normalized.contains("bsl")))
+        || (normalized.contains("syntax") && normalized.contains("bsl"))
+}
+
+fn custom_prompts_require_bsl_syntax_check(
+    custom: &crate::settings::CustomPromptsSettings,
+) -> bool {
+    [&custom.system_prefix, &custom.on_code_change, &custom.on_code_generate]
+        .iter()
+        .any(|text| custom_prompt_text_requests_bsl_syntax_check(text))
+        || custom.templates.iter().any(|template| {
+            if !template.enabled {
+                return false;
+            }
+
+            let combined = format!(
+                "{}\n{}\n{}\n{}",
+                template.id, template.name, template.description, template.content
+            );
+            custom_prompt_text_requests_bsl_syntax_check(&combined)
+        })
+}
+
+fn extract_latest_user_bsl_blocks(messages: &[ApiMessage]) -> Vec<String> {
+    messages
+        .iter()
+        .rev()
+        .find(|message| message.role == "user")
+        .and_then(|message| message.content.as_deref())
+        .map(extract_bsl_code)
+        .unwrap_or_default()
+}
+
+fn build_forced_bsl_syntax_tool_call(
+    idx: usize,
+    code: &str,
+) -> (
+    String,
+    serde_json::Value,
+    String,
+    crate::ai::models::ToolCall,
+) {
+    let tool_call_id = format!("auto_check_bsl_syntax_{}", idx + 1);
+    let arguments_value = serde_json::json!({ "code": code });
+    let arguments = arguments_value.to_string();
+    let tool_call = crate::ai::models::ToolCall {
+        id: tool_call_id.clone(),
+        r#type: "function".to_string(),
+        function: crate::ai::models::ToolCallFunction {
+            name: "check_bsl_syntax".to_string(),
+            arguments: arguments.clone(),
+        },
+    };
+
+    (tool_call_id, arguments_value, arguments, tool_call)
+}
+
+fn bsl_diagnostic_to_ui(diagnostic: &crate::bsl_client::Diagnostic) -> BSLDiagnostic {
+    BSLDiagnostic {
+        line: diagnostic.range.start.line,
+        character: diagnostic.range.start.character,
+        message: diagnostic.message.clone(),
+        severity: match diagnostic.severity {
+            Some(1) => "error".to_string(),
+            Some(2) => "warning".to_string(),
+            _ => "info".to_string(),
+        },
+    }
+}
+
 #[tauri::command]
 pub async fn clear_naparnik_session() -> Result<(), String> {
     if let Some(profile) = crate::llm_profiles::get_active_profile() {
@@ -415,6 +495,116 @@ pub async fn stream_chat(
         // Guard: ask AI to write text response only once (when it returns thinking-only with no text)
         let mut asked_for_text_response = false;
         let mut tool_result_cache: HashMap<String, String> = HashMap::new();
+
+        if custom_prompts_require_bsl_syntax_check(&settings.custom_prompts) {
+            let bsl_blocks = extract_latest_user_bsl_blocks(&api_messages);
+            if !bsl_blocks.is_empty() {
+                crate::app_log!(
+                    "[AI][TOOL][AUTO] Active custom prompt requires check_bsl_syntax; forcing {} tool call(s)",
+                    bsl_blocks.len()
+                );
+                let _ = task_app_handle.emit("chat-status", "Checking BSL syntax...");
+
+                let mut forced_ui_diagnostics: Vec<BSLDiagnostic> = Vec::new();
+
+                for (idx, code) in bsl_blocks.iter().enumerate() {
+                    let (tool_call_id, arguments_value, arguments, tool_call) =
+                        build_forced_bsl_syntax_tool_call(idx, code);
+                    let tool_name = "check_bsl_syntax";
+
+                    api_messages.push(ApiMessage {
+                        role: "assistant".to_string(),
+                        content: None,
+                        tool_calls: Some(vec![tool_call]),
+                        tool_call_id: None,
+                        name: None,
+                    });
+
+                    let _ = task_app_handle.emit(
+                        "tool-call-started",
+                        serde_json::json!({
+                            "index": idx,
+                            "id": tool_call_id,
+                            "name": tool_name
+                        }),
+                    );
+                    let _ = task_app_handle.emit(
+                        "tool-call-progress",
+                        serde_json::json!({
+                            "index": idx,
+                            "arguments": arguments
+                        }),
+                    );
+
+                    crate::app_log!(
+                        "[AI][TOOL][AUTO] Executing: {} with args: {}",
+                        tool_name,
+                        arguments_value
+                    );
+
+                    let handler = crate::bsl_client::BSLMcpHandler::new(bsl_state.inner().clone());
+                    let call_result =
+                        tokio::time::timeout(tokio::time::Duration::from_secs(30), async {
+                            crate::mcp_client::InternalMcpHandler::call_tool(
+                                &handler,
+                                tool_name,
+                                arguments_value,
+                            )
+                            .await
+                        })
+                        .await;
+
+                    let (status, tool_result) = match call_result {
+                        Ok(Ok(result)) => {
+                            if let Some(diagnostics_value) = result.get("diagnostics") {
+                                if let Ok(diagnostics) = serde_json::from_value::<
+                                    Vec<crate::bsl_client::Diagnostic>,
+                                >(diagnostics_value.clone())
+                                {
+                                    forced_ui_diagnostics.extend(
+                                        diagnostics.iter().map(bsl_diagnostic_to_ui),
+                                    );
+                                }
+                            }
+                            ("done", result.to_string())
+                        }
+                        Ok(Err(error)) => {
+                            crate::app_log!(
+                                "[AI][TOOL][AUTO] check_bsl_syntax failed: {}",
+                                error
+                            );
+                            ("error", format!("Error calling tool: {}", error))
+                        }
+                        Err(_) => {
+                            crate::app_log!(
+                                "[AI][TOOL][AUTO] check_bsl_syntax timed out after 30s"
+                            );
+                            ("error", "Error calling tool: Timeout 30s".to_string())
+                        }
+                    };
+
+                    let _ = task_app_handle.emit(
+                        "tool-call-completed",
+                        serde_json::json!({
+                            "id": tool_call_id,
+                            "status": status,
+                            "result": tool_result
+                        }),
+                    );
+
+                    api_messages.push(ApiMessage {
+                        role: "tool".to_string(),
+                        content: Some(tool_result),
+                        tool_call_id: Some(tool_call_id),
+                        tool_calls: None,
+                        name: Some(tool_name.to_string()),
+                    });
+                }
+
+                let _ = task_app_handle.emit("bsl-validation-result", &forced_ui_diagnostics);
+                emit_context_usage(&task_app_handle, &api_messages, effective_context_window);
+            }
+        }
 
         loop {
             current_iteration += 1;
@@ -1142,5 +1332,81 @@ mod tests {
         };
 
         assert_eq!(resolve_context_usage_window(Some(&profile)), 8_000);
+    }
+
+    #[test]
+    fn issue_186_detects_enabled_bsl_syntax_rule() {
+        let mut custom = crate::settings::CustomPromptsSettings::default();
+        custom.templates.push(crate::settings::PromptTemplate {
+            id: "bsl-syntax".to_string(),
+            name: "Синтаксис 1С".to_string(),
+            description: "Контролировать синтаксис 1С".to_string(),
+            content: "Перед ответом проверь BSL через check_bsl_syntax.".to_string(),
+            enabled: true,
+        });
+
+        assert!(custom_prompts_require_bsl_syntax_check(&custom));
+    }
+
+    #[test]
+    fn issue_186_ignores_disabled_bsl_syntax_rule() {
+        let custom = crate::settings::CustomPromptsSettings {
+            templates: vec![crate::settings::PromptTemplate {
+                id: "bsl-syntax".to_string(),
+                name: "Синтаксис 1С".to_string(),
+                description: "Контролировать синтаксис 1С".to_string(),
+                content: "Перед ответом проверь BSL через check_bsl_syntax.".to_string(),
+                enabled: false,
+            }],
+            ..Default::default()
+        };
+
+        assert!(!custom_prompts_require_bsl_syntax_check(&custom));
+    }
+
+    #[test]
+    fn issue_186_extracts_bsl_blocks_from_latest_user_message() {
+        let messages = vec![
+            ApiMessage {
+                role: "user".to_string(),
+                content: Some("```bsl\nПроцедура СтарыйКод()\nКонецПроцедуры\n```".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+            },
+            ApiMessage {
+                role: "assistant".to_string(),
+                content: Some("ответ".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+            },
+            ApiMessage {
+                role: "user".to_string(),
+                content: Some("```bsl\nПроцедура НовыйКод()\nКонецПроцедуры\n```".to_string()),
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+            },
+        ];
+
+        let blocks = extract_latest_user_bsl_blocks(&messages);
+
+        assert_eq!(blocks.len(), 1);
+        assert!(blocks[0].contains("НовыйКод"));
+        assert!(!blocks[0].contains("СтарыйКод"));
+    }
+
+    #[test]
+    fn issue_186_builds_forced_check_bsl_syntax_tool_call() {
+        let code = "????????? Hello()\n??????????????";
+        let (tool_call_id, arguments_value, arguments, tool_call) =
+            build_forced_bsl_syntax_tool_call(0, code);
+
+        assert_eq!(tool_call_id, "auto_check_bsl_syntax_1");
+        assert_eq!(tool_call.function.name, "check_bsl_syntax");
+        assert_eq!(tool_call.function.arguments, arguments);
+        assert_eq!(arguments_value["code"], code);
+        assert!(arguments.contains("????????? Hello"));
     }
 }
