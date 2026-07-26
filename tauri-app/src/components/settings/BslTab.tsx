@@ -10,7 +10,6 @@ interface BslTabProps {
     setSettings: (settings: AppSettings) => void;
     bslStatus: BslStatus | null;
     refreshBslStatus: () => void;
-    browseJar: () => void;
     browseWorkspace: () => void;
     handleDownloadBslLs: () => void;
     downloading: boolean;
@@ -30,7 +29,6 @@ export function BslTab({
     setSettings,
     bslStatus,
     refreshBslStatus,
-    browseJar,
     browseWorkspace,
     handleDownloadBslLs,
     downloading,
@@ -174,42 +172,6 @@ export function BslTab({
                             />
                         </div>
 
-                        <details className="rounded-lg border border-zinc-700/70 bg-zinc-900/30">
-                            <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase text-zinc-500">
-                                Legacy JAR
-                            </summary>
-                            <div className="space-y-3 border-t border-zinc-700/70 p-3">
-                                <div>
-                                    <label className="text-xs text-zinc-500 mb-1 block">JAR Path</label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={settings.bsl_server.jar_path}
-                                            onChange={(e) => setSettings({
-                                                ...settings,
-                                                bsl_server: { ...settings.bsl_server, jar_path: e.target.value }
-                                            })}
-                                            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100"
-                                        />
-                                        <button onClick={browseJar} className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-sm text-zinc-200">
-                                            Browse
-                                        </button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-xs text-zinc-500 mb-1 block">Java Path</label>
-                                    <input
-                                        type="text"
-                                        value={settings.bsl_server.java_path}
-                                        onChange={(e) => setSettings({
-                                            ...settings,
-                                            bsl_server: { ...settings.bsl_server, java_path: e.target.value }
-                                        })}
-                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100"
-                                    />
-                                </div>
-                            </div>
-                        </details>
                     </div>
                 </section>
 

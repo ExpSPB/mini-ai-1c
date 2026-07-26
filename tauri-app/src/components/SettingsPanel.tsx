@@ -151,24 +151,6 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
         }
     };
 
-    const browseJar = async () => {
-        try {
-            const file = await open({
-                multiple: false,
-                filters: [{ name: 'JAR Files', extensions: ['jar'] }],
-                directory: false
-            });
-            if (file && typeof file === 'string' && settings) {
-                setSettings({
-                    ...settings,
-                    bsl_server: { ...settings.bsl_server, jar_path: file }
-                });
-            }
-        } catch (error) {
-            console.error('Failed to open file dialog:', error);
-        }
-    };
-
     const browseBslWorkspace = async () => {
         try {
             const directory = await open({
@@ -361,7 +343,6 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
                             setSettings={setSettings}
                             bslStatus={bslStatus}
                             refreshBslStatus={refreshBslStatus}
-                            browseJar={browseJar}
                             browseWorkspace={browseBslWorkspace}
                             handleDownloadBslLs={handleDownloadBslLs}
                             downloading={downloading}
