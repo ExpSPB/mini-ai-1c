@@ -11,6 +11,14 @@ pub struct Model {
     pub description: Option<String>,
     pub cost_in: Option<f64>,  // Cost per 1M input tokens
     pub cost_out: Option<f64>, // Cost per 1M output tokens
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_reasoning_effort: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub supported_reasoning_efforts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub priority: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supported_in_api: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +49,10 @@ pub fn static_minimax_models() -> Vec<Model> {
             ),
             cost_in: Some(0.30),
             cost_out: Some(1.10),
+            default_reasoning_effort: None,
+            supported_reasoning_efforts: Vec::new(),
+            priority: None,
+            supported_in_api: None,
         },
         Model {
             id: "MiniMax-M2.7-highspeed".into(),
@@ -49,6 +61,10 @@ pub fn static_minimax_models() -> Vec<Model> {
             description: Some("MiniMax M2.7 fast variant. Context: 204k.".into()),
             cost_in: Some(0.30),
             cost_out: Some(1.10),
+            default_reasoning_effort: None,
+            supported_reasoning_efforts: Vec::new(),
+            priority: None,
+            supported_in_api: None,
         },
         Model {
             id: "MiniMax-M2.5".into(),
@@ -57,6 +73,10 @@ pub fn static_minimax_models() -> Vec<Model> {
             description: Some("MiniMax M2.5 model. Context: 204k.".into()),
             cost_in: Some(0.20),
             cost_out: Some(1.10),
+            default_reasoning_effort: None,
+            supported_reasoning_efforts: Vec::new(),
+            priority: None,
+            supported_in_api: None,
         },
         Model {
             id: "MiniMax-Text-01".into(),
@@ -65,6 +85,10 @@ pub fn static_minimax_models() -> Vec<Model> {
             description: Some("MiniMax legacy long-context text model, 1M context.".into()),
             cost_in: Some(0.20),
             cost_out: Some(1.10),
+            default_reasoning_effort: None,
+            supported_reasoning_efforts: Vec::new(),
+            priority: None,
+            supported_in_api: None,
         },
         Model {
             id: "abab7-preview".into(),
@@ -73,6 +97,10 @@ pub fn static_minimax_models() -> Vec<Model> {
             description: Some("MiniMax ABAB7 preview model.".into()),
             cost_in: None,
             cost_out: None,
+            default_reasoning_effort: None,
+            supported_reasoning_efforts: Vec::new(),
+            priority: None,
+            supported_in_api: None,
         },
     ]
 }
@@ -122,6 +150,10 @@ async fn fetch_minimax_models(base_url: &str, api_key: &str) -> Result<Vec<Model
                             description: None,
                             cost_in: None,
                             cost_out: None,
+                            default_reasoning_effort: None,
+                            supported_reasoning_efforts: Vec::new(),
+                            priority: None,
+                            supported_in_api: None,
                         }
                     })
                     .collect();
@@ -135,79 +167,114 @@ async fn fetch_minimax_models(base_url: &str, api_key: &str) -> Result<Vec<Model
     }
 }
 
+/// Source-verified fallback snapshot of the official Codex model catalog.
+///
+/// Retrieved from `https://chatgpt.com/backend-api/codex/models` on 2026-07-26;
+/// public model availability was cross-checked against
+/// `https://developers.openai.com/codex/models`.
 pub fn static_codex_models() -> Vec<Model> {
     vec![
+        Model {
+            id: "gpt-5.6-sol".into(),
+            name: "GPT-5.6-Sol".into(),
+            context_window: 272_000,
+            description: Some("Latest frontier agentic coding model.".into()),
+            cost_in: None,
+            cost_out: None,
+            default_reasoning_effort: Some("low".into()),
+            supported_reasoning_efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]
+                .map(String::from)
+                .to_vec(),
+            priority: Some(1),
+            supported_in_api: Some(true),
+        },
+        Model {
+            id: "gpt-5.6-terra".into(),
+            name: "GPT-5.6-Terra".into(),
+            context_window: 272_000,
+            description: Some("Balanced agentic coding model for everyday work.".into()),
+            cost_in: None,
+            cost_out: None,
+            default_reasoning_effort: Some("medium".into()),
+            supported_reasoning_efforts: ["low", "medium", "high", "xhigh", "max", "ultra"]
+                .map(String::from)
+                .to_vec(),
+            priority: Some(2),
+            supported_in_api: Some(true),
+        },
+        Model {
+            id: "gpt-5.6-luna".into(),
+            name: "GPT-5.6-Luna".into(),
+            context_window: 272_000,
+            description: Some("Fast and affordable agentic coding model.".into()),
+            cost_in: None,
+            cost_out: None,
+            default_reasoning_effort: Some("medium".into()),
+            supported_reasoning_efforts: ["low", "medium", "high", "xhigh", "max"]
+                .map(String::from)
+                .to_vec(),
+            priority: Some(3),
+            supported_in_api: Some(true),
+        },
         Model {
             id: "gpt-5.5".into(),
             name: "GPT-5.5".into(),
             context_window: 272_000,
-            description: Some("Most capable frontier agentic coding model.".into()),
+            description: Some(
+                "Frontier model for complex coding, research, and real-world work.".into(),
+            ),
             cost_in: None,
             cost_out: None,
-        },
-        Model {
-            id: "gpt-5.5-mini".into(),
-            name: "GPT-5.5 Mini".into(),
-            context_window: 272_000,
-            description: Some("Smaller, faster GPT-5.5 variant for everyday coding tasks.".into()),
-            cost_in: None,
-            cost_out: None,
+            default_reasoning_effort: Some("medium".into()),
+            supported_reasoning_efforts: ["low", "medium", "high", "xhigh"]
+                .map(String::from)
+                .to_vec(),
+            priority: Some(7),
+            supported_in_api: Some(true),
         },
         Model {
             id: "gpt-5.4".into(),
             name: "GPT-5.4".into(),
             context_window: 272_000,
-            description: Some("Latest frontier agentic coding model.".into()),
+            description: Some("Strong model for everyday coding.".into()),
             cost_in: None,
             cost_out: None,
+            default_reasoning_effort: Some("medium".into()),
+            supported_reasoning_efforts: ["low", "medium", "high", "xhigh"]
+                .map(String::from)
+                .to_vec(),
+            priority: Some(16),
+            supported_in_api: Some(true),
         },
         Model {
             id: "gpt-5.4-mini".into(),
-            name: "GPT-5.4 Mini".into(),
+            name: "GPT-5.4-Mini".into(),
             context_window: 272_000,
-            description: Some("Smaller frontier agentic coding model.".into()),
+            description: Some(
+                "Small, fast, and cost-efficient model for simpler coding tasks.".into(),
+            ),
             cost_in: None,
             cost_out: None,
+            default_reasoning_effort: Some("medium".into()),
+            supported_reasoning_efforts: ["low", "medium", "high", "xhigh"]
+                .map(String::from)
+                .to_vec(),
+            priority: Some(23),
+            supported_in_api: Some(true),
         },
         Model {
-            id: "gpt-5.3-codex".into(),
-            name: "GPT-5.3 Codex".into(),
-            context_window: 272_000,
-            description: Some("Frontier Codex-optimized agentic coding model.".into()),
+            id: "gpt-5.3-codex-spark".into(),
+            name: "GPT-5.3-Codex-Spark".into(),
+            context_window: 128_000,
+            description: Some("Ultra-fast coding model.".into()),
             cost_in: None,
             cost_out: None,
-        },
-        Model {
-            id: "gpt-5.2-codex".into(),
-            name: "GPT-5.2 Codex".into(),
-            context_window: 272_000,
-            description: Some("Frontier agentic coding model.".into()),
-            cost_in: None,
-            cost_out: None,
-        },
-        Model {
-            id: "gpt-5.2".into(),
-            name: "GPT-5.2".into(),
-            context_window: 272_000,
-            description: Some("Optimized for professional work and long-running agents.".into()),
-            cost_in: None,
-            cost_out: None,
-        },
-        Model {
-            id: "gpt-5.1-codex-max".into(),
-            name: "GPT-5.1 Codex Max".into(),
-            context_window: 272_000,
-            description: Some("Codex-optimized model for deep and fast reasoning.".into()),
-            cost_in: None,
-            cost_out: None,
-        },
-        Model {
-            id: "gpt-5.1-codex-mini".into(),
-            name: "GPT-5.1 Codex Mini".into(),
-            context_window: 272_000,
-            description: Some("Optimized for codex. Cheaper, faster, but less capable.".into()),
-            cost_in: None,
-            cost_out: None,
+            default_reasoning_effort: Some("high".into()),
+            supported_reasoning_efforts: ["low", "medium", "high", "xhigh"]
+                .map(String::from)
+                .to_vec(),
+            priority: Some(26),
+            supported_in_api: Some(false),
         },
     ]
 }
@@ -229,6 +296,10 @@ pub async fn fetch_models_from_api(
                 ),
                 cost_in: None,
                 cost_out: None,
+                default_reasoning_effort: None,
+                supported_reasoning_efforts: Vec::new(),
+                priority: None,
+                supported_in_api: None,
             },
             Model {
                 id: "qwen3-coder-plus".into(),
@@ -237,6 +308,10 @@ pub async fn fetch_models_from_api(
                 description: Some("Advanced code generation and understanding, 1M context".into()),
                 cost_in: None,
                 cost_out: None,
+                default_reasoning_effort: None,
+                supported_reasoning_efforts: Vec::new(),
+                priority: None,
+                supported_in_api: None,
             },
             Model {
                 id: "qwen3-coder-flash".into(),
@@ -245,6 +320,10 @@ pub async fn fetch_models_from_api(
                 description: Some("Fast code generation model, 256K context".into()),
                 cost_in: None,
                 cost_out: None,
+                default_reasoning_effort: None,
+                supported_reasoning_efforts: Vec::new(),
+                priority: None,
+                supported_in_api: None,
             },
             Model {
                 id: "vision-model".into(),
@@ -253,6 +332,10 @@ pub async fn fetch_models_from_api(
                 description: Some("Multimodal vision-language model, 256K context".into()),
                 cost_in: None,
                 cost_out: None,
+                default_reasoning_effort: None,
+                supported_reasoning_efforts: Vec::new(),
+                priority: None,
+                supported_in_api: None,
             },
         ]);
     }
@@ -342,6 +425,10 @@ pub async fn fetch_models_from_api(
                 description: None,
                 cost_in: None,
                 cost_out: None,
+                default_reasoning_effort: None,
+                supported_reasoning_efforts: Vec::new(),
+                priority: None,
+                supported_in_api: None,
             }
         })
         .collect();
@@ -678,6 +765,104 @@ fn enrich_model(model: &mut Model, reg_model: &Model) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn static_codex_models_match_verified_catalog_snapshot() {
+        let models = static_codex_models();
+        let expected: [(&str, &str, u32, &str, &str, &[&str], u32, bool); 7] = [
+            (
+                "gpt-5.6-sol",
+                "GPT-5.6-Sol",
+                272_000,
+                "Latest frontier agentic coding model.",
+                "low",
+                &["low", "medium", "high", "xhigh", "max", "ultra"],
+                1,
+                true,
+            ),
+            (
+                "gpt-5.6-terra",
+                "GPT-5.6-Terra",
+                272_000,
+                "Balanced agentic coding model for everyday work.",
+                "medium",
+                &["low", "medium", "high", "xhigh", "max", "ultra"],
+                2,
+                true,
+            ),
+            (
+                "gpt-5.6-luna",
+                "GPT-5.6-Luna",
+                272_000,
+                "Fast and affordable agentic coding model.",
+                "medium",
+                &["low", "medium", "high", "xhigh", "max"],
+                3,
+                true,
+            ),
+            (
+                "gpt-5.5",
+                "GPT-5.5",
+                272_000,
+                "Frontier model for complex coding, research, and real-world work.",
+                "medium",
+                &["low", "medium", "high", "xhigh"],
+                7,
+                true,
+            ),
+            (
+                "gpt-5.4",
+                "GPT-5.4",
+                272_000,
+                "Strong model for everyday coding.",
+                "medium",
+                &["low", "medium", "high", "xhigh"],
+                16,
+                true,
+            ),
+            (
+                "gpt-5.4-mini",
+                "GPT-5.4-Mini",
+                272_000,
+                "Small, fast, and cost-efficient model for simpler coding tasks.",
+                "medium",
+                &["low", "medium", "high", "xhigh"],
+                23,
+                true,
+            ),
+            (
+                "gpt-5.3-codex-spark",
+                "GPT-5.3-Codex-Spark",
+                128_000,
+                "Ultra-fast coding model.",
+                "high",
+                &["low", "medium", "high", "xhigh"],
+                26,
+                false,
+            ),
+        ];
+
+        assert_eq!(models.len(), expected.len());
+        for (model, expected) in models.iter().zip(expected) {
+            assert_eq!(model.id, expected.0);
+            assert_eq!(model.name, expected.1);
+            assert_eq!(model.context_window, expected.2);
+            assert_eq!(model.description.as_deref(), Some(expected.3));
+            assert_eq!(model.default_reasoning_effort.as_deref(), Some(expected.4));
+            assert_eq!(
+                model.supported_reasoning_efforts,
+                expected
+                    .5
+                    .iter()
+                    .map(|effort| (*effort).to_string())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(model.priority, Some(expected.6));
+            assert_eq!(model.supported_in_api, Some(expected.7));
+            assert_eq!(model.cost_in, None);
+            assert_eq!(model.cost_out, None);
+        }
+    }
 
     #[test]
     fn derive_ollama_native_base_strips_v1() {
