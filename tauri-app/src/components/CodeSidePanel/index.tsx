@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { DiffEditor, Editor, loader } from '@monaco-editor/react';
 import { registerBSL } from '@/lib/monaco-bsl';
 import { CodeSidePanelProps } from './types';
+import { finalizeDiffSessionIfLastGroup } from '../../utils/diffSession';
 import { useResizing } from './useResizing';
 import { Header } from './Header';
 import { Footer } from './Footer';
@@ -241,10 +242,6 @@ export function CodeSidePanel({
     const previewFrozenCodeRef = useRef<string | null>(null);
     previewFrozenCodeRef.current = previewFrozenCode;
 
-    // Флаг: пользователь хотя бы раз нажал Accept/Revert в текущем превью.
-    // Защищает auto-commit от срабатывания до первого взаимодействия пользователя
-    // (Monaco возвращает changes=[] до завершения вычисления диффа).
-    const anyChunkHandledRef = useRef(false);
     // Флаг: авто-скролл к первому изменению уже выполнен для текущего превью.
     // Сбрасывается при смене activeDiffContent — чтобы не скроллить повторно.
     const hasAutoScrolledRef = useRef(false);
@@ -260,7 +257,6 @@ export function CodeSidePanel({
                 onModifiedCodeChange(previewCode);
                 onActiveDiffChange?.('');
             }
-            anyChunkHandledRef.current = false;
             return;
         }
 
@@ -270,7 +266,6 @@ export function CodeSidePanel({
     }, [flushModifiedCodeChange, onActiveDiffChange, onApply, onCommitCode, onModifiedCodeChange]);
 
     useEffect(() => {
-        anyChunkHandledRef.current = false;
         hasAutoScrolledRef.current = false;
         if (!activeDiffContent || !hasDiffBlocks(activeDiffContent)) {
             setPreviewFrozenCode(null);
@@ -594,21 +589,6 @@ export function CodeSidePanel({
                                 if (!currentContent || changes === null) return;
 
                                 if (changes.length === 0) {
-                                    // Только если пользователь уже нажал Accept/Revert хотя бы раз —
-                                    // иначе Monaco может вернуть [] до завершения вычисления диффа.
-                                    if (anyChunkHandledRef.current && previewFrozenCodeRef.current !== null) {
-                                        // Все чанки обработаны — фиксируем принятый код.
-                                        onModifiedCodeChange(localOriginalCodeRef.current);
-                                        anyChunkHandledRef.current = false;
-                                        // НЕ вызываем setPreviewFrozenCode(null) здесь явно!
-                                        // Если очистить previewFrozenCode до обновления modifiedCode,
-                                        // DiffEditor увидит старый modifiedCode и покажет 13+ "призрачных" блоков.
-                                        // Вместо этого: onActiveDiffChange('') очистит activeDiffContent,
-                                        // и previewFrozenCode уберётся естественно через свой useEffect.
-                                        if (onActiveDiffChange) {
-                                            setTimeout(() => onActiveDiffChange(''), 0);
-                                        }
-                                    }
                                     return;
                                 }
 
@@ -632,11 +612,21 @@ export function CodeSidePanel({
 
                                             targetLines.splice(removeStartIndex, removeCount, ...origBlock);
 
-                                            anyChunkHandledRef.current = true;
+                                            const finalCode = targetLines.join('\n');
                                             if (previewFrozenCodeRef.current !== null) {
-                                                setPreviewFrozenCode(targetLines.join('\n'));
+                                                setPreviewFrozenCode(finalCode);
                                             } else {
-                                                onModifiedCodeChange(targetLines.join('\n'));
+                                                onModifiedCodeChange(finalCode);
+                                            }
+                                            const finalized = finalizeDiffSessionIfLastGroup({
+                                                remainingGroupCount: mergedChanges.length,
+                                                finalCode,
+                                                onCodeChange: onCommitCode ?? onModifiedCodeChange,
+                                                onDiffChange: onActiveDiffChange,
+                                                defer: callback => window.setTimeout(callback, 0),
+                                            });
+                                            if (finalized) {
+                                                return;
                                             }
                                             setTimeout(updateInlineWidgets, 50);
                                         };
@@ -659,12 +649,22 @@ export function CodeSidePanel({
 
                                             targetLines.splice(removeStartIndex, removeCount, ...modBlock);
 
-                                            anyChunkHandledRef.current = true;
-                                            setLocalOriginalCode(targetLines.join('\n'));
+                                            const finalCode = targetLines.join('\n');
+                                            setLocalOriginalCode(finalCode);
                                             modifiedEditor.changeViewZones((acc: any) => {
                                                 viewZoneIdsRef.current.forEach(id => acc.removeZone(id));
                                                 viewZoneIdsRef.current = [];
                                             });
+                                            const finalized = finalizeDiffSessionIfLastGroup({
+                                                remainingGroupCount: mergedChanges.length,
+                                                finalCode,
+                                                onCodeChange: onCommitCode ?? onModifiedCodeChange,
+                                                onDiffChange: onActiveDiffChange,
+                                                defer: callback => window.setTimeout(callback, 0),
+                                            });
+                                            if (finalized) {
+                                                return;
+                                            }
                                             setTimeout(updateInlineWidgets, 50);
                                         };
 
