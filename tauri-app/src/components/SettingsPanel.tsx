@@ -151,23 +151,6 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
         }
     };
 
-    const browseBslWorkspace = async () => {
-        try {
-            const directory = await open({
-                multiple: false,
-                directory: true
-            });
-            if (directory && typeof directory === 'string' && settings) {
-                setSettings({
-                    ...settings,
-                    bsl_server: { ...settings.bsl_server, workspace_path: directory }
-                });
-            }
-        } catch (error) {
-            console.error('Failed to select BSL workspace:', error);
-        }
-    };
-
     const handleDownloadBslLs = async () => {
         setDownloading(true);
         setBslDownloadError(null);
@@ -343,7 +326,6 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
                             setSettings={setSettings}
                             bslStatus={bslStatus}
                             refreshBslStatus={refreshBslStatus}
-                            browseWorkspace={browseBslWorkspace}
                             handleDownloadBslLs={handleDownloadBslLs}
                             downloading={downloading}
                             downloadProgress={downloadProgress}

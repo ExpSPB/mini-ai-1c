@@ -10,7 +10,6 @@ interface BslTabProps {
     setSettings: (settings: AppSettings) => void;
     bslStatus: BslStatus | null;
     refreshBslStatus: () => void;
-    browseWorkspace: () => void;
     handleDownloadBslLs: () => void;
     downloading: boolean;
     downloadProgress: number;
@@ -29,7 +28,6 @@ export function BslTab({
     setSettings,
     bslStatus,
     refreshBslStatus,
-    browseWorkspace,
     handleDownloadBslLs,
     downloading,
     downloadProgress,
@@ -135,28 +133,6 @@ export function BslTab({
                                     BSL Language Server успешно установлен
                                 </div>
                             )}
-                        </div>
-
-                        <div>
-                            <label className="text-xs text-zinc-500 uppercase font-semibold mb-1 block">BSL Workspace</label>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <input
-                                    type="text"
-                                    value={settings.bsl_server.workspace_path}
-                                    onChange={(e) => setSettings({
-                                        ...settings,
-                                        bsl_server: { ...settings.bsl_server, workspace_path: e.target.value }
-                                    })}
-                                    placeholder="Не задан — используется служебный workspace"
-                                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none text-zinc-100"
-                                />
-                                <button onClick={browseWorkspace} className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-sm text-zinc-200 transition-colors">
-                                    Выбрать
-                                </button>
-                            </div>
-                            <div className="mt-1 text-xs text-zinc-500">
-                                Корень выгруженной конфигурации для навигации и официальных MCP-инструментов.
-                            </div>
                         </div>
 
                         <div>
