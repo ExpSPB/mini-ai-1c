@@ -62,7 +62,10 @@ fn with_runtime_settings(mut config: McpServerConfig, settings: &AppSettings) ->
     if search_index_dir.is_empty() {
         env.remove(SEARCH_INDEX_DIR_ENV);
     } else {
-        env.insert(SEARCH_INDEX_DIR_ENV.to_string(), search_index_dir.to_string());
+        env.insert(
+            SEARCH_INDEX_DIR_ENV.to_string(),
+            search_index_dir.to_string(),
+        );
     }
 
     config.env = if env.is_empty() { None } else { Some(env) };
@@ -365,8 +368,10 @@ impl McpManager {
             if let Ok(mut bsl) =
                 tokio::time::timeout(Duration::from_millis(3000), bsl_lock_future).await
             {
-                let jar_exists = std::path::Path::new(&new_settings.bsl_server.jar_path).exists();
-                if jar_exists && !bsl.is_connected() {
+                let server_exists = std::path::Path::new(&new_settings.bsl_server.executable_path)
+                    .is_file()
+                    || std::path::Path::new(&new_settings.bsl_server.jar_path).is_file();
+                if server_exists && !bsl.is_connected() {
                     crate::app_log!(
                         "[MCP] Restarting/Starting BSL LS because it was enabled and not connected"
                     );
@@ -599,6 +604,18 @@ pub struct McpClient {
     session: Arc<McpSession>,
 }
 
+pub(crate) const BSL_TOOL_CALL_TIMEOUT_SECS: u64 = 90;
+
+fn tool_call_timeout_secs(server_id: &str) -> u64 {
+    if server_id == BUILTIN_1C_SEARCH_SERVER_ID || server_id == "builtin-1c-naparnik" {
+        120
+    } else if server_id == "bsl-ls" || server_id == "bsl-ls-official" {
+        BSL_TOOL_CALL_TIMEOUT_SECS
+    } else {
+        30
+    }
+}
+
 impl McpClient {
     pub async fn new(config: McpServerConfig) -> Result<Self, String> {
         let session = McpManager::get_client(config).await?;
@@ -622,13 +639,7 @@ impl McpClient {
     }
 
     pub async fn call_tool(&self, name: &str, arguments: Value) -> Result<Value, String> {
-        let timeout_secs = if self.session.config.id == BUILTIN_1C_SEARCH_SERVER_ID
-            || self.session.config.id == "builtin-1c-naparnik"
-        {
-            120
-        } else {
-            30
-        };
+        let timeout_secs = tool_call_timeout_secs(&self.session.config.id);
         match tokio::time::timeout(
             Duration::from_secs(timeout_secs),
             self.session.call_tool(name, arguments),
@@ -2082,6 +2093,13 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
+    fn bsl_tool_timeout_allows_diagnostic_reconnect_cycle() {
+        assert_eq!(tool_call_timeout_secs("bsl-ls"), 90);
+        assert_eq!(tool_call_timeout_secs("bsl-ls-official"), 90);
+        assert_eq!(tool_call_timeout_secs("regular-server"), 30);
+    }
+
+    #[test]
     fn detects_initialize_requirement_from_rpc_error() {
         let response = HttpRpcResponse {
             status: reqwest::StatusCode::OK,
@@ -2196,7 +2214,10 @@ mod tests {
     fn builtin_search_runtime_env_includes_custom_search_index_dir() {
         let config = McpServerConfig {
             id: BUILTIN_1C_SEARCH_SERVER_ID.to_string(),
-            env: Some(HashMap::from([("ONEC_CONFIG_PATH".to_string(), "D:\\cfg".to_string())])),
+            env: Some(HashMap::from([(
+                "ONEC_CONFIG_PATH".to_string(),
+                "D:\\cfg".to_string(),
+            )])),
             ..Default::default()
         };
         let settings = AppSettings {
@@ -2211,7 +2232,10 @@ mod tests {
             env.get(SEARCH_INDEX_DIR_ENV).map(String::as_str),
             Some("D:\\cfg\\search-index")
         );
-        assert_eq!(env.get("ONEC_CONFIG_PATH").map(String::as_str), Some("D:\\cfg"));
+        assert_eq!(
+            env.get("ONEC_CONFIG_PATH").map(String::as_str),
+            Some("D:\\cfg")
+        );
     }
 
     #[test]

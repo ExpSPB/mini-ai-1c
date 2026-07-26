@@ -52,6 +52,7 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
     const [bslDownloadError, setBslDownloadError] = useState<string | null>(null);
     const [bslDownloadSuccess, setBslDownloadSuccess] = useState(false);
     const [diagnosing, setDiagnosing] = useState(false);
+    const [reconnectingBsl, setReconnectingBsl] = useState(false);
     const [diagReport, setDiagReport] = useState<BslDiagnosticItem[] | null>(null);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -168,6 +169,23 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
         }
     };
 
+    const browseBslWorkspace = async () => {
+        try {
+            const directory = await open({
+                multiple: false,
+                directory: true
+            });
+            if (directory && typeof directory === 'string' && settings) {
+                setSettings({
+                    ...settings,
+                    bsl_server: { ...settings.bsl_server, workspace_path: directory }
+                });
+            }
+        } catch (error) {
+            console.error('Failed to select BSL workspace:', error);
+        }
+    };
+
     const handleDownloadBslLs = async () => {
         setDownloading(true);
         setBslDownloadError(null);
@@ -177,13 +195,9 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
         });
 
         try {
-            const path = await invoke<string>('install_bsl_ls_cmd');
-            if (settings) {
-                setSettings({
-                    ...settings,
-                    bsl_server: { ...settings.bsl_server, jar_path: path }
-                });
-            }
+            await invoke<string>('install_bsl_ls_cmd');
+            const installedSettings = await invoke<AppSettings>('get_settings');
+            setSettings(installedSettings);
             setBslDownloadSuccess(true);
             invoke('reconnect_bsl_ls_cmd').catch(e => console.warn(e));
             setTimeout(refreshBslStatus, 2000);
@@ -206,6 +220,18 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
             setDiagReport([{ status: 'error', title: 'Системная ошибка', message: String(e) }]);
         }
         setDiagnosing(false);
+    };
+
+    const reconnectBsl = async () => {
+        setReconnectingBsl(true);
+        try {
+            await invoke('reconnect_bsl_ls_cmd');
+            refreshBslStatus();
+        } catch (error) {
+            setBslDownloadError(String(error));
+        } finally {
+            setReconnectingBsl(false);
+        }
     };
 
     if (!isOpen) return null;
@@ -336,6 +362,7 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
                             bslStatus={bslStatus}
                             refreshBslStatus={refreshBslStatus}
                             browseJar={browseJar}
+                            browseWorkspace={browseBslWorkspace}
                             handleDownloadBslLs={handleDownloadBslLs}
                             downloading={downloading}
                             downloadProgress={downloadProgress}
@@ -345,6 +372,8 @@ export function SettingsPanel({ isOpen, onClose, initialTab }: SettingsPanelProp
                             diagReport={diagReport}
                             setDiagReport={setDiagReport}
                             runDiagnostics={runDiagnostics}
+                            reconnectBsl={reconnectBsl}
+                            reconnecting={reconnectingBsl}
                         />
                     )}
 
