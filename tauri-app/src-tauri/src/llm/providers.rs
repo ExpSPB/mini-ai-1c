@@ -35,74 +35,139 @@ const REGISTRY_URL: &str =
     "https://raw.githubusercontent.com/hawkxtreme/mini-ai-1c/main/registry/models.json"; // Placeholder
                                                                                          // const OPENAI_MODELS_ENDPOINT: &str = "/v1/models";
 
+fn minimax_model(
+    id: &str,
+    name: &str,
+    context_window: u32,
+    description: &str,
+    cost_in: f64,
+    cost_out: f64,
+    priority: u32,
+) -> Model {
+    Model {
+        id: id.into(),
+        name: name.into(),
+        context_window,
+        description: Some(description.into()),
+        cost_in: Some(cost_in),
+        cost_out: Some(cost_out),
+        default_reasoning_effort: None,
+        supported_reasoning_efforts: Vec::new(),
+        priority: Some(priority),
+        supported_in_api: Some(true),
+    }
+}
+
+/// Source-verified snapshot of the MiniMax Chat Completions model catalog.
+///
+/// Model IDs and output limits:
+/// https://platform.minimax.io/docs/api-reference/text-chat-openai
+/// Context windows:
+/// https://platform.minimax.io/docs/api-reference/text-anthropic-api
+/// Standard tier prices:
+/// https://platform.minimax.io/docs/guides/pricing-paygo
+///
+/// Verified on 2026-07-29.
 pub fn static_minimax_models() -> Vec<Model> {
-    // Context windows per official docs: https://platform.minimax.io/docs/api-reference/api-overview
-    // M2.x series: 204,800 tokens context window
-    // Recommended max_tokens for coding integrations: 64,000 (per AI coding tools guide)
     vec![
-        Model {
-            id: "MiniMax-M2.7".into(),
-            name: "MiniMax M2.7".into(),
-            context_window: 204_800,
-            description: Some(
-                "MiniMax flagship model. Context: 204k. Recommended output: 64k.".into(),
-            ),
-            cost_in: Some(0.30),
-            cost_out: Some(1.10),
-            default_reasoning_effort: None,
-            supported_reasoning_efforts: Vec::new(),
-            priority: None,
-            supported_in_api: None,
-        },
-        Model {
-            id: "MiniMax-M2.7-highspeed".into(),
-            name: "MiniMax M2.7 Highspeed".into(),
-            context_window: 204_800,
-            description: Some("MiniMax M2.7 fast variant. Context: 204k.".into()),
-            cost_in: Some(0.30),
-            cost_out: Some(1.10),
-            default_reasoning_effort: None,
-            supported_reasoning_efforts: Vec::new(),
-            priority: None,
-            supported_in_api: None,
-        },
-        Model {
-            id: "MiniMax-M2.5".into(),
-            name: "MiniMax M2.5".into(),
-            context_window: 204_800,
-            description: Some("MiniMax M2.5 model. Context: 204k.".into()),
-            cost_in: Some(0.20),
-            cost_out: Some(1.10),
-            default_reasoning_effort: None,
-            supported_reasoning_efforts: Vec::new(),
-            priority: None,
-            supported_in_api: None,
-        },
-        Model {
-            id: "MiniMax-Text-01".into(),
-            name: "MiniMax Text-01".into(),
-            context_window: 1_000_000,
-            description: Some("MiniMax legacy long-context text model, 1M context.".into()),
-            cost_in: Some(0.20),
-            cost_out: Some(1.10),
-            default_reasoning_effort: None,
-            supported_reasoning_efforts: Vec::new(),
-            priority: None,
-            supported_in_api: None,
-        },
-        Model {
-            id: "abab7-preview".into(),
-            name: "ABAB7 Preview".into(),
-            context_window: 245_760,
-            description: Some("MiniMax ABAB7 preview model.".into()),
-            cost_in: None,
-            cost_out: None,
-            default_reasoning_effort: None,
-            supported_reasoning_efforts: Vec::new(),
-            priority: None,
-            supported_in_api: None,
-        },
+        minimax_model(
+            "MiniMax-M3",
+            "MiniMax M3",
+            1_000_000,
+            "Frontier multimodal coding model. Context: 1M. Recommended output: 128K.",
+            0.30,
+            1.20,
+            1,
+        ),
+        minimax_model(
+            "MiniMax-M2.7",
+            "MiniMax M2.7",
+            204_800,
+            "Current coding model. Context: 204.8K. Recommended output: 64K.",
+            0.30,
+            1.20,
+            2,
+        ),
+        minimax_model(
+            "MiniMax-M2.7-highspeed",
+            "MiniMax M2.7 Highspeed",
+            204_800,
+            "High-speed M2.7 variant. Context: 204.8K. Recommended output: 64K.",
+            0.60,
+            2.40,
+            3,
+        ),
+        minimax_model(
+            "MiniMax-M2.5",
+            "MiniMax M2.5",
+            204_800,
+            "Legacy coding and refactoring model. Context: 204.8K.",
+            0.30,
+            1.20,
+            4,
+        ),
+        minimax_model(
+            "MiniMax-M2.5-highspeed",
+            "MiniMax M2.5 Highspeed",
+            204_800,
+            "High-speed legacy M2.5 variant. Context: 204.8K.",
+            0.60,
+            2.40,
+            5,
+        ),
+        minimax_model(
+            "MiniMax-M2.1",
+            "MiniMax M2.1",
+            204_800,
+            "Legacy multilingual coding model. Context: 204.8K.",
+            0.30,
+            1.20,
+            6,
+        ),
+        minimax_model(
+            "MiniMax-M2.1-highspeed",
+            "MiniMax M2.1 Highspeed",
+            204_800,
+            "High-speed legacy M2.1 variant. Context: 204.8K.",
+            0.60,
+            2.40,
+            7,
+        ),
+        minimax_model(
+            "MiniMax-M2",
+            "MiniMax M2",
+            204_800,
+            "Legacy agentic reasoning model. Context: 204.8K.",
+            0.30,
+            1.20,
+            8,
+        ),
     ]
+}
+
+fn minimax_model_from_api(id: String, context_window: Option<u32>) -> Model {
+    if let Some(mut verified) = static_minimax_models()
+        .into_iter()
+        .find(|model| model.id == id)
+    {
+        if let Some(context_window) = context_window {
+            verified.context_window = context_window;
+        }
+        return verified;
+    }
+
+    Model {
+        name: id.clone(),
+        id,
+        context_window: context_window.unwrap_or(0),
+        description: None,
+        cost_in: None,
+        cost_out: None,
+        default_reasoning_effort: None,
+        supported_reasoning_efforts: Vec::new(),
+        priority: None,
+        supported_in_api: Some(true),
+    }
 }
 
 /// Fetch MiniMax models: try live /v1/models API, fallback to static list.
@@ -141,21 +206,7 @@ async fn fetch_minimax_models(base_url: &str, api_key: &str) -> Result<Vec<Model
                 let models: Vec<Model> = parsed
                     .data
                     .into_iter()
-                    .map(|m| {
-                        let cw = m.context_window.unwrap_or(1_000_000);
-                        Model {
-                            id: m.id.clone(),
-                            name: m.id.clone(),
-                            context_window: cw,
-                            description: None,
-                            cost_in: None,
-                            cost_out: None,
-                            default_reasoning_effort: None,
-                            supported_reasoning_efforts: Vec::new(),
-                            priority: None,
-                            supported_in_api: None,
-                        }
-                    })
+                    .map(|model| minimax_model_from_api(model.id, model.context_window))
                     .collect();
                 if !models.is_empty() {
                     return Ok(models);
@@ -765,6 +816,51 @@ fn enrich_model(model: &mut Model, reg_model: &Model) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn static_minimax_models_match_official_chat_completions_catalog() {
+        let models = static_minimax_models();
+        let expected: [(&str, u32, f64, f64, u32); 8] = [
+            ("MiniMax-M3", 1_000_000, 0.30, 1.20, 1),
+            ("MiniMax-M2.7", 204_800, 0.30, 1.20, 2),
+            ("MiniMax-M2.7-highspeed", 204_800, 0.60, 2.40, 3),
+            ("MiniMax-M2.5", 204_800, 0.30, 1.20, 4),
+            ("MiniMax-M2.5-highspeed", 204_800, 0.60, 2.40, 5),
+            ("MiniMax-M2.1", 204_800, 0.30, 1.20, 6),
+            ("MiniMax-M2.1-highspeed", 204_800, 0.60, 2.40, 7),
+            ("MiniMax-M2", 204_800, 0.30, 1.20, 8),
+        ];
+
+        assert_eq!(models.len(), expected.len());
+        for (model, expected) in models.iter().zip(expected) {
+            assert_eq!(model.id, expected.0);
+            assert_eq!(model.context_window, expected.1);
+            assert_eq!(model.cost_in, Some(expected.2));
+            assert_eq!(model.cost_out, Some(expected.3));
+            assert_eq!(model.priority, Some(expected.4));
+            assert_eq!(model.supported_in_api, Some(true));
+        }
+
+        assert_eq!(
+            models[0].description.as_deref(),
+            Some("Frontier multimodal coding model. Context: 1M. Recommended output: 128K.")
+        );
+    }
+
+    #[test]
+    fn minimax_api_models_use_verified_metadata_without_inventing_unknown_context() {
+        let known = minimax_model_from_api("MiniMax-M3".into(), None);
+        assert_eq!(known.context_window, 1_000_000);
+        assert_eq!(known.cost_in, Some(0.30));
+        assert_eq!(known.cost_out, Some(1.20));
+        assert_eq!(known.supported_in_api, Some(true));
+
+        let unknown = minimax_model_from_api("MiniMax-future".into(), None);
+        assert_eq!(unknown.context_window, 0);
+        assert_eq!(unknown.cost_in, None);
+        assert_eq!(unknown.cost_out, None);
+        assert_eq!(unknown.supported_in_api, Some(true));
+    }
 
     #[test]
     fn static_codex_models_match_verified_catalog_snapshot() {

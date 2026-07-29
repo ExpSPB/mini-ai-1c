@@ -16,13 +16,17 @@ import {
 } from '../../utils/llmProfileModelMetadata';
 import { isOllamaCloudProfile } from '../../utils/profileHelpers';
 import { shouldResetApiKeyDraft } from '../../utils/profileSecretDraft';
+import {
+    MINIMAX_PROVIDER_DEFINITION,
+    type ProviderDefinition,
+} from './providerCatalog';
 
 interface LLMSettingsProps {
     profiles: ProfileStore;
     onUpdate: () => void;
 }
 
-const PROVIDERS = [
+const PROVIDERS: ProviderDefinition[] = [
     { value: 'OpenAI', label: 'OpenAI', defaultModel: 'gpt-4o', defaultUrl: 'https://api.openai.com/v1', type: 'standard' },
     { value: 'Anthropic', label: 'Anthropic', defaultModel: 'claude-3-5-sonnet-latest', defaultUrl: 'https://api.anthropic.com/v1', type: 'standard' },
     { value: 'Google', label: 'Google Gemini', defaultModel: 'gemini-1.5-pro', defaultUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', type: 'standard' },
@@ -38,7 +42,7 @@ const PROVIDERS = [
     { value: 'LMStudio', label: 'LM Studio (Local)', defaultModel: '', defaultUrl: 'http://localhost:1234/v1', type: 'standard' },
     { value: 'QwenCli', label: 'Qwen Code (CLI)', defaultModel: 'coder-model', defaultUrl: 'https://portal.qwen.ai/v1', type: 'cli' },
     { value: 'CodexCli', label: 'OpenAI Codex (CLI)', defaultModel: 'gpt-5.6-sol', defaultUrl: 'https://chatgpt.com/backend-api/codex', type: 'cli' },
-    { value: 'MiniMax', label: 'MiniMax', defaultModel: 'MiniMax-M2.7', defaultUrl: 'https://api.minimax.io/v1', type: 'standard' },
+    MINIMAX_PROVIDER_DEFINITION,
     { value: 'Custom', label: 'Custom / Other', defaultModel: '', defaultUrl: '', type: 'standard' },
     { value: 'OneCNaparnik', label: '1С:Напарник', defaultModel: 'naparnik', defaultUrl: 'https://code.1c.ai', type: 'naparnik' },
 ];
