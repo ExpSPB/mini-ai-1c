@@ -1432,6 +1432,8 @@ impl McpSession {
             let mut reader = BufReader::new(stdout).lines();
             let mut stderr_reader = BufReader::new(stderr).lines();
 
+            let mut stderr_ended = false;
+
             loop {
                 tokio::select! {
                       line_res = reader.next_line() => {
@@ -1471,7 +1473,7 @@ impl McpSession {
                              }
                          }
                       }
-                     stderr_res = stderr_reader.next_line() => {
+                     stderr_res = stderr_reader.next_line(), if !stderr_ended => {
                          // Consume stderr to prevent buffer fill
                          if let Ok(Some(line)) = stderr_res {
                              crate::app_log!("[MCP][{}][STDERR] {}", server_id_for_logs, line);
@@ -1584,7 +1586,8 @@ impl McpSession {
                              }
                              logs.push_back(line);
                          } else {
-                             // EOF on stderr
+                            // EOF or error on stderr — disable polling stderr to prevent CPU busy-wait spin
+                            stderr_ended = true;
                          }
                      }
                 }
