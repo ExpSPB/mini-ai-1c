@@ -9,6 +9,8 @@ interface McpToolsViewProps {
     serverName?: string | null;
     mcpServersOverride?: McpServerConfig[];
     bslEnabledOverride?: boolean;
+    allowToggle?: boolean;
+    onToggleTool?: (serverId: string, toolName: string, enabled: boolean) => void;
 }
 
 function getToolIdentity(tool: McpToolInfo) {
@@ -19,11 +21,14 @@ export function McpToolsView({
     serverName,
     mcpServersOverride,
     bslEnabledOverride,
+    allowToggle = false,
+    onToggleTool,
 }: McpToolsViewProps) {
     const [tools, setTools] = useState<McpToolInfo[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [expandedTool, setExpandedTool] = useState<string | null>(null);
+    const [togglingTool, setTogglingTool] = useState<string | null>(null);
 
     const fetchTools = async (force = false) => {
         setLoading(true);
@@ -51,6 +56,27 @@ export function McpToolsView({
             setError(e?.toString() || 'Failed to fetch tools');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleToggleTool = async (tool: McpToolInfo, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!allowToggle || !tool.server_id) return;
+
+        const toolId = getToolIdentity(tool);
+        setTogglingTool(toolId);
+        try {
+            await invoke('toggle_mcp_tool', {
+                serverId: tool.server_id,
+                toolName: tool.tool_name,
+                enabled: !tool.is_enabled,
+            });
+            onToggleTool?.(tool.server_id, tool.tool_name, !tool.is_enabled);
+            await fetchTools(true);
+        } catch (err: any) {
+            console.error('Failed to toggle MCP tool:', err);
+        } finally {
+            setTogglingTool(null);
         }
     };
 
@@ -171,7 +197,22 @@ export function McpToolsView({
                                                         ≈{formatMcpTokenCount(tool.estimated_tokens)}
                                                     </span>
                                                 )}
-                                                <div className={`w-2.5 h-2.5 rounded-full ${tool.is_enabled ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+                                                {allowToggle ? (
+                                                    <button
+                                                        type="button"
+                                                        disabled={togglingTool === toolId}
+                                                        onClick={(e) => handleToggleTool(tool, e)}
+                                                        className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none ${tool.is_enabled ? 'bg-emerald-500' : 'bg-zinc-600'} ${togglingTool === toolId ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
+                                                        title={tool.is_enabled ? "Отключить инструмент" : "Включить инструмент"}
+                                                    >
+                                                        <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white transition-transform ${tool.is_enabled ? 'translate-x-4.5' : 'translate-x-1'}`} />
+                                                    </button>
+                                                ) : (
+                                                    <div
+                                                        className={`w-2.5 h-2.5 rounded-full ${tool.is_enabled ? 'bg-emerald-400' : 'bg-zinc-600'}`}
+                                                        title={tool.is_enabled ? "Включен" : "Отключен"}
+                                                    />
+                                                )}
                                                 <button
                                                     className="text-zinc-400 hover:text-zinc-200 p-1"
                                                     title="Info"

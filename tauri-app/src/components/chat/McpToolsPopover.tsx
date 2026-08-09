@@ -21,7 +21,7 @@ function sanitizeTools(tools: McpToolInfo[]) {
     const deduped: McpToolInfo[] = [];
 
     for (const tool of tools) {
-        if (!tool.is_enabled || tool.tool_name === '__server_unavailable__') {
+        if (tool.tool_name === '__server_unavailable__') {
             continue;
         }
 
@@ -139,7 +139,7 @@ export default function McpToolsPopover({
                                     className="flex items-center justify-between px-3 py-2 hover:bg-zinc-800/50 text-left transition-colors"
                                 >
                                     <div className="min-w-0 flex-1">
-                                        <div className="text-[12px] font-medium text-zinc-200">{t.tool_name}</div>
+                                        <div className={`text-[12px] font-medium ${t.is_enabled ? 'text-zinc-200' : 'text-zinc-400'}`}>{t.tool_name}</div>
                                         {t.description && (
                                             <div className="text-[10px] text-zinc-500 line-clamp-2">{t.description}</div>
                                         )}

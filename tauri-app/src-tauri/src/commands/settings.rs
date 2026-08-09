@@ -535,6 +535,7 @@ mod tests {
                 command: None,
                 args: None,
                 env: Some(HashMap::from([("TOKEN".to_string(), "secret".to_string())])),
+                disabled_tools: None,
             }],
             proxy: ProxySettings {
                 mode: ProxyMode::Custom,
@@ -687,6 +688,7 @@ mod tests {
                 "TOKEN".to_string(),
                 "current-secret".to_string(),
             )])),
+            disabled_tools: None,
         }];
         current.llm.providers.insert(
             "openai".to_string(),

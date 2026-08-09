@@ -383,6 +383,8 @@ pub struct McpServerConfig {
     pub command: Option<String>,
     pub args: Option<Vec<String>>,
     pub env: Option<std::collections::HashMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disabled_tools: Option<Vec<String>>,
 }
 
 impl Default for McpServerConfig {
@@ -399,6 +401,7 @@ impl Default for McpServerConfig {
             command: None,
             args: None,
             env: None,
+            disabled_tools: None,
         }
     }
 }
@@ -1065,6 +1068,7 @@ mod tests {
                     "src/mcp-servers/1c-naparnik.ts".to_string(),
                 ]),
                 env: None,
+                disabled_tools: None,
             }],
             ..AppSettings::default()
         };

@@ -155,6 +155,7 @@ export interface McpServerConfig {
     args?: string[] | null;
     env?: Record<string, string> | null;
     headers?: Record<string, string> | null;
+    disabled_tools?: string[] | null;
 }
 
 export interface McpServerStatus {
@@ -504,6 +505,39 @@ export function MCPSettings({
 
     const handleUpdateServer = (id: string, updates: Partial<McpServerConfig>) => {
         onUpdate(servers.map(s => s.id === id ? { ...s, ...updates } : s));
+    };
+
+    const handleToggleToolInSettings = (serverId: string, toolName: string, enabled: boolean) => {
+        let found = false;
+        const updatedServers = servers.map(server => {
+            if (server.id !== serverId) return server;
+            found = true;
+            const currentDisabled = server.disabled_tools ?? [];
+            let newDisabled: string[];
+            if (enabled) {
+                newDisabled = currentDisabled.filter(t => t !== toolName);
+            } else {
+                newDisabled = currentDisabled.includes(toolName)
+                    ? currentDisabled
+                    : [...currentDisabled, toolName];
+            }
+            return {
+                ...server,
+                disabled_tools: newDisabled,
+            };
+        });
+
+        if (!found) {
+            updatedServers.push({
+                id: serverId,
+                name: serverId,
+                enabled: true,
+                transport: 'internal',
+                disabled_tools: enabled ? [] : [toolName],
+            });
+        }
+
+        onUpdate(updatedServers);
     };
 
     const handleTestConnection = async (config: McpServerConfig) => {
@@ -1718,6 +1752,8 @@ export function MCPSettings({
                                 serverName={servers.find(s => s.id === viewingToolsId)?.name ?? null}
                                 mcpServersOverride={servers}
                                 bslEnabledOverride={bslEnabled}
+                                allowToggle={true}
+                                onToggleTool={handleToggleToolInSettings}
                             />
                         </div>
                     </div>
