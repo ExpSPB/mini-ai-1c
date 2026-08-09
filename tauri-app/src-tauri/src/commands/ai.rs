@@ -9,6 +9,8 @@ pub struct FrontendToolCall {
     pub id: String,
     pub r#type: String,
     pub function: FrontendToolCallFunction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_content: Option<crate::ai::models::ExtraContent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -329,6 +331,7 @@ fn build_forced_bsl_syntax_tool_call(
             name: "check_bsl_syntax".to_string(),
             arguments: arguments.clone(),
         },
+        extra_content: None,
     };
 
     (tool_call_id, arguments_value, arguments, tool_call)
@@ -460,6 +463,7 @@ pub async fn stream_chat(
                             name: tc.function.name,
                             arguments: tc.function.arguments,
                         },
+                        extra_content: tc.extra_content,
                     })
                     .collect::<Vec<_>>()
             });
@@ -1318,6 +1322,7 @@ mod tests {
                     name: "search_code".to_string(),
                     arguments: "{}".to_string(),
                 },
+                extra_content: None,
             }]),
             tool_call_id: None,
             name: None,

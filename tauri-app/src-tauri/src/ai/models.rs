@@ -30,10 +30,22 @@ pub struct ApiMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GoogleExtraContent {
+    pub thought_signature: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtraContent {
+    pub google: Option<GoogleExtraContent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
     pub id: String,
     pub r#type: String,
     pub function: ToolCallFunction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_content: Option<ExtraContent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +115,7 @@ pub struct ToolCallDelta {
     #[allow(dead_code)]
     pub r#type: Option<String>, // Renamed from _type for consistency and to avoid prefix
     pub function: Option<ToolCallFunctionDelta>,
+    pub extra_content: Option<ExtraContent>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -135,6 +148,7 @@ pub struct NonStreamToolCall {
     pub id: String,
     pub r#type: String,
     pub function: NonStreamToolCallFunction,
+    pub extra_content: Option<ExtraContent>,
 }
 
 #[derive(Debug, Deserialize)]

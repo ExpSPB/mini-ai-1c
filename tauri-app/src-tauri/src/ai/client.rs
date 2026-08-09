@@ -880,6 +880,7 @@ pub async fn stream_chat_completion(
                         .filter(|s| !s.is_empty())
                         .unwrap_or_else(|| "{}".to_string()),
                 },
+                extra_content: tc.extra_content,
             })
             .collect();
         if !content.is_empty() {
@@ -893,6 +894,24 @@ pub async fn stream_chat_completion(
                     "index": idx, "id": tc.id, "name": tc.function.name
                 }),
             );
+            let _ = app_handle.emit(
+                "tool-call-progress",
+                serde_json::json!({
+                    "index": idx, "arguments": tc.function.arguments
+                }),
+            );
+            if let Some(ts) = tc.extra_content
+                .as_ref()
+                .and_then(|ec| ec.google.as_ref())
+                .and_then(|g| g.thought_signature.as_ref())
+            {
+                let _ = app_handle.emit(
+                    "tool-call-signature",
+                    serde_json::json!({
+                        "index": idx, "signature": ts
+                    }),
+                );
+            }
         }
         crate::app_log!(
             "[AI][RESP] non-stream content_chars={} tool_calls={}",
@@ -1315,6 +1334,7 @@ pub async fn stream_chat_completion(
                                                         name: fn_name.clone(),
                                                         arguments: args,
                                                     },
+                                                    extra_content: None,
                                                 };
                                                 let _ = app_handle.emit("tool-call-started", serde_json::json!({
                                                     "index": tc_idx, "id": tc.id, "name": fn_name
@@ -1371,6 +1391,7 @@ pub async fn stream_chat_completion(
                                                 name: fn_name.clone(),
                                                 arguments: args_json,
                                             },
+                                            extra_content: None,
                                         };
                                         let _ = app_handle.emit(
                                             "tool-call-started",
@@ -1396,6 +1417,7 @@ pub async fn stream_chat_completion(
                                                 name: String::new(),
                                                 arguments: String::new(),
                                             },
+                                            extra_content: None,
                                         });
                                     }
 
@@ -1420,6 +1442,27 @@ pub async fn stream_chat_completion(
                                                 }),
                                             );
                                         }
+                                    }
+                                    // Accumulate extra_content.google.thought_signature from delta
+                                    if let Some(ts) = tc_delta.extra_content
+                                        .as_ref()
+                                        .and_then(|ec| ec.google.as_ref())
+                                        .and_then(|g| g.thought_signature.as_ref())
+                                    {
+                                        let existing_sig = tc.extra_content
+                                            .get_or_insert_with(|| ExtraContent { google: None })
+                                            .google
+                                            .get_or_insert_with(|| GoogleExtraContent { thought_signature: None })
+                                            .thought_signature
+                                            .get_or_insert_with(String::new);
+                                        existing_sig.push_str(ts);
+                                        let _ = app_handle.emit(
+                                            "tool-call-signature",
+                                            serde_json::json!({
+                                                "index": idx,
+                                                "signature": ts
+                                            }),
+                                        );
                                     }
 
                                     if !announced_tool_calls.contains(&idx)
@@ -1673,6 +1716,7 @@ mod tests {
                         name: "search_code".to_string(),
                         arguments: "{}".to_string(),
                     },
+                    extra_content: None,
                 }]),
                 tool_call_id: None,
                 name: None,
