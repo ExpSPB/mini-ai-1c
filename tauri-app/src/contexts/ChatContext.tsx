@@ -427,6 +427,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                     }),
                     listen<{ index: number, id: string, name: string }>('tool-call-started', (event) => {
                         flushNow();
+                        // Progress/signature events may follow immediately in the same stream delta.
+                        currentBatchToolIds.current[event.payload.index] = event.payload.id;
                         setMessages(prev => {
                             const newToolCall = {
                                 id: event.payload.id,
@@ -453,9 +455,6 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                                     parts: [{ type: 'tool' as const, toolCallId: event.payload.id }]
                                 }];
                             }
-
-                            // Сохраняем ID в ref для tool-call-progress
-                            currentBatchToolIds.current[event.payload.index] = event.payload.id;
 
                             const last = prev[lastAssistantIdx];
                             // Push вместо index-assign — не перезаписываем tool calls из предыдущих итераций

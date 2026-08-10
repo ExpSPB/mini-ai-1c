@@ -289,6 +289,27 @@ pub fn resolve_profile_api_key(
 
 /// Stream chat completion from OpenAI-compatible API
 /// Returns the full accumulated response text
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StreamToolCallEventKind {
+    Started,
+    Progress,
+    Signature,
+}
+
+fn stream_tool_call_event_order(
+    should_announce: bool,
+    has_arguments: bool,
+    has_signature: bool,
+) -> impl Iterator<Item = StreamToolCallEventKind> {
+    [
+        should_announce.then_some(StreamToolCallEventKind::Started),
+        has_arguments.then_some(StreamToolCallEventKind::Progress),
+        has_signature.then_some(StreamToolCallEventKind::Signature),
+    ]
+    .into_iter()
+    .flatten()
+}
+
 pub async fn stream_chat_completion(
     messages: Vec<ApiMessage>,
     app_handle: tauri::AppHandle,
@@ -1428,55 +1449,79 @@ pub async fn stream_chat_completion(
                                             tc.id.push_str(id);
                                         }
                                     }
-                                    if let Some(f) = &tc_delta.function {
-                                        if let Some(name) = &f.name {
-                                            tc.function.name.push_str(name);
-                                        }
-                                        if let Some(args) = &f.arguments {
-                                            tc.function.arguments.push_str(args);
-                                            let _ = app_handle.emit(
-                                                "tool-call-progress",
-                                                serde_json::json!({
-                                                    "index": idx,
-                                                    "arguments": args
-                                                }),
-                                            );
-                                        }
-                                    }
-                                    // Accumulate extra_content.google.thought_signature from delta
-                                    if let Some(ts) = tc_delta.extra_content
+                                    if let Some(name) = tc_delta
+                                        .function
                                         .as_ref()
-                                        .and_then(|ec| ec.google.as_ref())
-                                        .and_then(|g| g.thought_signature.as_ref())
+                                        .and_then(|function| function.name.as_ref())
                                     {
-                                        let existing_sig = tc.extra_content
-                                            .get_or_insert_with(|| ExtraContent { google: None })
-                                            .google
-                                            .get_or_insert_with(|| GoogleExtraContent { thought_signature: None })
-                                            .thought_signature
-                                            .get_or_insert_with(String::new);
-                                        existing_sig.push_str(ts);
-                                        let _ = app_handle.emit(
-                                            "tool-call-signature",
-                                            serde_json::json!({
-                                                "index": idx,
-                                                "signature": ts
-                                            }),
-                                        );
+                                        tc.function.name.push_str(name);
                                     }
 
-                                    if !announced_tool_calls.contains(&idx)
-                                        && (!tc.id.is_empty() || !tc.function.name.is_empty())
-                                    {
-                                        let _ = app_handle.emit(
-                                            "tool-call-started",
-                                            serde_json::json!({
-                                                "index": idx,
-                                                "id": tc.id,
-                                                "name": tc.function.name
-                                            }),
-                                        );
-                                        announced_tool_calls.insert(idx);
+                                    let arguments_delta = tc_delta
+                                        .function
+                                        .as_ref()
+                                        .and_then(|function| function.arguments.as_ref());
+                                    let signature_delta = tc_delta
+                                        .extra_content
+                                        .as_ref()
+                                        .and_then(|extra_content| extra_content.google.as_ref())
+                                        .and_then(|google| google.thought_signature.as_ref());
+                                    let should_announce = !announced_tool_calls.contains(&idx)
+                                        && (!tc.id.is_empty() || !tc.function.name.is_empty());
+
+                                    for event in stream_tool_call_event_order(
+                                        should_announce,
+                                        arguments_delta.is_some(),
+                                        signature_delta.is_some(),
+                                    ) {
+                                        match event {
+                                            StreamToolCallEventKind::Started => {
+                                                let _ = app_handle.emit(
+                                                    "tool-call-started",
+                                                    serde_json::json!({
+                                                        "index": idx,
+                                                        "id": tc.id,
+                                                        "name": tc.function.name
+                                                    }),
+                                                );
+                                                announced_tool_calls.insert(idx);
+                                            }
+                                            StreamToolCallEventKind::Progress => {
+                                                if let Some(arguments) = arguments_delta {
+                                                    tc.function.arguments.push_str(arguments);
+                                                    let _ = app_handle.emit(
+                                                        "tool-call-progress",
+                                                        serde_json::json!({
+                                                            "index": idx,
+                                                            "arguments": arguments
+                                                        }),
+                                                    );
+                                                }
+                                            }
+                                            StreamToolCallEventKind::Signature => {
+                                                if let Some(signature) = signature_delta {
+                                                    let existing_signature = tc
+                                                        .extra_content
+                                                        .get_or_insert_with(|| ExtraContent {
+                                                            google: None,
+                                                        })
+                                                        .google
+                                                        .get_or_insert_with(|| GoogleExtraContent {
+                                                            thought_signature: None,
+                                                        })
+                                                        .thought_signature
+                                                        .get_or_insert_with(String::new);
+                                                    existing_signature.push_str(signature);
+                                                    let _ = app_handle.emit(
+                                                        "tool-call-signature",
+                                                        serde_json::json!({
+                                                            "index": idx,
+                                                            "signature": signature
+                                                        }),
+                                                    );
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1798,5 +1843,17 @@ mod tests {
         assert!(changed);
         assert_eq!(request.max_tokens, 8_192);
         assert_eq!(request.thinking_budget_tokens, Some(4_096));
+    }
+
+    #[test]
+    fn streaming_tool_call_is_announced_before_payload_events() {
+        assert_eq!(
+            stream_tool_call_event_order(true, true, true).collect::<Vec<_>>(),
+            vec![
+                StreamToolCallEventKind::Started,
+                StreamToolCallEventKind::Progress,
+                StreamToolCallEventKind::Signature,
+            ]
+        );
     }
 }
