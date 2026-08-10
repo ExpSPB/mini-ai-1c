@@ -1,4 +1,5 @@
 export interface McpToolInfo {
+  server_id?: string;
   server_name: string;
   tool_name: string;
   description: string | null;

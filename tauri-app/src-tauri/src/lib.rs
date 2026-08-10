@@ -105,6 +105,7 @@ pub fn run() {
             // MCP
             get_mcp_tools,
             list_mcp_tools,
+            toggle_mcp_tool,
             call_mcp_tool,
             test_mcp_connection,
             get_mcp_server_statuses,

@@ -57,6 +57,7 @@ pub async fn get_available_tools() -> Vec<ToolInfo> {
     let mut futures = Vec::new();
 
     for config in enabled_configs {
+        let disabled_tools = config.disabled_tools.clone().unwrap_or_default();
         futures.push(async move {
             let server_name = config.name.clone();
             let server_id = config.id.clone();
@@ -81,7 +82,7 @@ pub async fn get_available_tools() -> Vec<ToolInfo> {
                         tools.len(),
                         duration
                     );
-                    Ok((server_id, tools))
+                    Ok((server_id, disabled_tools, tools))
                 }
                 Ok(Err(e)) => {
                     crate::app_log!(
@@ -106,8 +107,17 @@ pub async fn get_available_tools() -> Vec<ToolInfo> {
     let results = futures::future::join_all(futures).await;
 
     for res in results {
-        if let Ok((server_id, tools)) = res {
+        if let Ok((server_id, disabled_tools, tools)) = res {
             for tool in tools {
+                if disabled_tools.contains(&tool.name) {
+                    crate::app_log!(
+                        "[MCP][TOOLS] Skipping disabled tool '{}' for server '{}'",
+                        tool.name,
+                        server_id
+                    );
+                    continue;
+                }
+
                 // 1. Sanitize Name (only alphanumeric, underscore, hyphen)
                 let name = tool
                     .name

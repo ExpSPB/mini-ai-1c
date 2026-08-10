@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 /// Struct returned to frontend with aggregated tool metadata
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct McpToolInfo {
+    pub server_id: String,
     pub server_name: String,
     pub tool_name: String,
     pub description: Option<String>,
@@ -29,6 +30,12 @@ lazy_static! {
 const MCP_TOOLS_CACHE_TTL_SECS: u64 = 300;
 const MCP_TOOLS_REQUEST_TIMEOUT_SECS: u64 = 8;
 const INTERNAL_BSL_SERVER_ID: &str = "bsl-ls";
+
+pub fn clear_mcp_tools_cache() {
+    if let Ok(mut cache_lock) = MCP_TOOLS_CACHE.lock() {
+        *cache_lock = None;
+    }
+}
 
 fn estimate_text_tokens(text: &str) -> u32 {
     if text.is_empty() {
@@ -85,8 +92,9 @@ fn estimate_mcp_tool_tokens(tool: &McpTool) -> u32 {
         .unwrap_or(0)
 }
 
-fn unavailable_tool(server_name: String, message: String) -> Vec<McpToolInfo> {
+fn unavailable_tool(server_id: String, server_name: String, message: String) -> Vec<McpToolInfo> {
     vec![McpToolInfo {
+        server_id,
         server_name,
         tool_name: "__server_unavailable__".to_string(),
         description: Some(message),
@@ -99,16 +107,20 @@ fn unavailable_tool(server_name: String, message: String) -> Vec<McpToolInfo> {
 async fn collect_server_tools(config: McpServerConfig) -> Vec<McpToolInfo> {
     let server_name = config.name.clone();
     let server_id = config.id.clone();
+    let disabled_tools = config.disabled_tools.clone().unwrap_or_default();
     let timeout = Duration::from_secs(MCP_TOOLS_REQUEST_TIMEOUT_SECS);
 
     if let Some(message) = builtin_search_unavailable_reason(&config) {
-        return unavailable_tool(server_name, message);
+        return unavailable_tool(server_id, server_name, message);
     }
 
+    let req_server_id = server_id.clone();
+    let req_config = config.clone();
+
     match tokio::time::timeout(timeout, async move {
-        let client = McpClient::new(config.clone()).await?;
+        let client = McpClient::new(req_config).await?;
         let tools = client.list_tools().await?;
-        if server_id == BUILTIN_1C_SEARCH_SERVER_ID {
+        if req_server_id == BUILTIN_1C_SEARCH_SERVER_ID {
             let (help_status, help_message) = client.get_help_state().await;
             if help_status == "unavailable" {
                 return Err(if help_message.is_empty() {
@@ -125,16 +137,18 @@ async fn collect_server_tools(config: McpServerConfig) -> Vec<McpToolInfo> {
         Ok(Ok(tools)) => tools
             .into_iter()
             .map(|tool| McpToolInfo {
+                server_id: server_id.clone(),
                 server_name: server_name.clone(),
                 estimated_tokens: estimate_mcp_tool_tokens(&tool),
+                is_enabled: !disabled_tools.contains(&tool.name),
                 tool_name: tool.name,
                 description: Some(tool.description),
                 input_schema: Some(tool.input_schema),
-                is_enabled: true,
             })
             .collect(),
-        Ok(Err(error)) => unavailable_tool(server_name, format!("Failed to list tools: {}", error)),
+        Ok(Err(error)) => unavailable_tool(server_id.clone(), server_name, format!("Failed to list tools: {}", error)),
         Err(_) => unavailable_tool(
+            server_id.clone(),
             server_name,
             format!(
                 "Timed out while loading tools after {}s",
@@ -294,6 +308,51 @@ pub async fn save_debug_logs(app_handle: tauri::AppHandle) -> Result<(), String>
     Ok(())
 }
 
+/// Toggle an MCP tool on or off for a specific server
+#[tauri::command]
+pub async fn toggle_mcp_tool(
+    server_id: String,
+    tool_name: String,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut settings = load_settings();
+    let server = match settings.mcp_servers.iter_mut().find(|s| s.id == server_id) {
+        Some(s) => s,
+        None => {
+            if server_id == INTERNAL_BSL_SERVER_ID {
+                settings.mcp_servers.push(crate::settings::McpServerConfig {
+                    id: INTERNAL_BSL_SERVER_ID.to_string(),
+                    name: "BSL Language Server".to_string(),
+                    enabled: settings.bsl_server.enabled,
+                    transport: crate::settings::McpTransport::Internal,
+                    ..Default::default()
+                });
+                settings.mcp_servers.last_mut().unwrap()
+            } else {
+                return Err(format!("MCP server with ID '{}' not found", server_id));
+            }
+        }
+    };
+
+    let disabled_list = server.disabled_tools.get_or_insert_with(Vec::new);
+
+    if enabled {
+        disabled_list.retain(|name| name != &tool_name);
+    } else {
+        if !disabled_list.contains(&tool_name) {
+            disabled_list.push(tool_name.clone());
+        }
+    }
+
+    crate::settings::save_settings(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
+
+    clear_mcp_tools_cache();
+    crate::ai::tools::clear_mcp_cache();
+
+    Ok(())
+}
+
 /// Call an MCP tool on a specific server
 #[tauri::command]
 pub async fn call_mcp_tool(
@@ -321,6 +380,12 @@ pub async fn call_mcp_tool(
             }
         })
         .ok_or_else(|| format!("MCP server with ID '{}' not found", server_id))?;
+
+    if let Some(disabled) = &config.disabled_tools {
+        if disabled.contains(&name) {
+            return Err(format!("Инструмент '{}' отключен для сервера '{}'", name, server_id));
+        }
+    }
 
     let client = McpClient::new(config).await?;
     client.call_tool(&name, arguments).await
@@ -484,5 +549,40 @@ mod tests {
             .expect("custom search-index directory should resolve");
 
         assert_eq!(dir, std::path::PathBuf::from(r"D:\cfg\erp\search-index"));
+    }
+
+    #[test]
+    fn disabled_tools_deserialization_and_toggle() {
+        let json_str = r#"{
+            "id": "srv1",
+            "name": "Test Server",
+            "enabled": true,
+            "transport": "http",
+            "disabled_tools": ["tool_a", "tool_b"]
+        }"#;
+        let mut config: McpServerConfig = serde_json::from_str(json_str).unwrap();
+        assert_eq!(
+            config.disabled_tools,
+            Some(vec!["tool_a".to_string(), "tool_b".to_string()])
+        );
+
+        {
+            let disabled = config.disabled_tools.get_or_insert_with(Vec::new);
+            // Enable tool_a -> remove from list
+            disabled.retain(|n| n != "tool_a");
+        }
+        assert_eq!(config.disabled_tools, Some(vec!["tool_b".to_string()]));
+
+        {
+            let disabled = config.disabled_tools.get_or_insert_with(Vec::new);
+            // Disable tool_c -> add to list
+            if !disabled.contains(&"tool_c".to_string()) {
+                disabled.push("tool_c".to_string());
+            }
+        }
+        assert_eq!(
+            config.disabled_tools,
+            Some(vec!["tool_b".to_string(), "tool_c".to_string()])
+        );
     }
 }

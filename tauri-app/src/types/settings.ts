@@ -119,6 +119,7 @@ export interface McpServerConfig {
     command?: string | null;
     args?: string[] | null;
     env?: Record<string, string> | null;
+    disabled_tools?: string[] | null;
 }
 
 export type ProxyMode = 'system' | 'disabled' | 'custom';
