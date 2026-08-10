@@ -7,6 +7,11 @@ export interface ChatToolCall {
         name: string;
         arguments: string;
     };
+    extra_content?: {
+        google?: {
+            thought_signature?: string;
+        };
+    };
 }
 
 export interface ChatMessage {

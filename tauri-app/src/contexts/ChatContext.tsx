@@ -19,6 +19,7 @@ export interface ToolCall {
     result?: string;
     startedAt?: number;
     duration?: number;
+    thought_signature?: string;
 }
 
 export interface BSLDiagnostic {
@@ -186,8 +187,15 @@ function buildPayloadMessages(
                         type: 'function',
                         function: {
                             name: tc.name,
-                            arguments: tc.arguments || '{}'
-                        }
+                            arguments: tc.arguments || '{}',
+                        },
+                        ...(tc.thought_signature ? {
+                            extra_content: {
+                                google: {
+                                    thought_signature: tc.thought_signature,
+                                }
+                            }
+                        } : undefined),
                     }))
                 };
                 const toolResults: api.ChatMessage[] = completedToolCalls
@@ -480,6 +488,33 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                                 toolCalls[tcIdx] = {
                                     ...toolCalls[tcIdx],
                                     arguments: toolCalls[tcIdx].arguments + event.payload.arguments
+                                };
+                            }
+
+                            return [
+                                ...prev.slice(0, lastAssistantIdx),
+                                { ...last, toolCalls },
+                                ...prev.slice(lastAssistantIdx + 1)
+                            ];
+                        });
+                    }),
+                    listen<{ index: number, signature: string }>('tool-call-signature', (event) => {
+                        setMessages(prev => {
+                            let lastAssistantIdx = -1;
+                            for (let i = prev.length - 1; i >= 0; i--) {
+                                if (prev[i].role === 'user') break;
+                                if (prev[i].role === 'assistant' && prev[i].toolCalls) { lastAssistantIdx = i; break; }
+                            }
+                            if (lastAssistantIdx === -1) return prev;
+
+                            const last = prev[lastAssistantIdx];
+                            const toolCalls = [...last.toolCalls!];
+                            const toolId = currentBatchToolIds.current[event.payload.index];
+                            const tcIdx = toolId ? toolCalls.findIndex(tc => tc.id === toolId) : -1;
+                            if (tcIdx !== -1) {
+                                toolCalls[tcIdx] = {
+                                    ...toolCalls[tcIdx],
+                                    thought_signature: (toolCalls[tcIdx].thought_signature || '') + event.payload.signature
                                 };
                             }
 

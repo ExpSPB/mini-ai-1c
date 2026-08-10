@@ -868,6 +868,7 @@ pub async fn stream_codex_completion(
                                         name: name.clone(),
                                         arguments: arguments.clone(),
                                     },
+                                    extra_content: None,
                                 });
                                 pending_calls.remove(&call_id);
                                 crate::app_log!(
@@ -893,6 +894,7 @@ pub async fn stream_codex_completion(
                                         name: name.clone(),
                                         arguments: arguments.clone(),
                                     },
+                                    extra_content: None,
                                 });
                                 crate::app_log!(
                                     "[Codex] Function call completed (args.done): {} args_len={}",
@@ -921,7 +923,11 @@ pub async fn stream_codex_completion(
                         accumulated_tool_calls.push(ToolCall {
                             id: call_id,
                             r#type: "function".to_string(),
-                            function: ToolCallFunction { name, arguments },
+                            function: ToolCallFunction {
+                                name,
+                                arguments,
+                            },
+                            extra_content: None,
                         });
                     }
 
@@ -1067,6 +1073,7 @@ mod tests {
                         name: "check_bsl_syntax".to_string(),
                         arguments: "{}".to_string(),
                     },
+                    extra_content: None,
                 }]),
                 tool_call_id: None,
                 name: None,
@@ -1092,6 +1099,7 @@ mod tests {
                         name: "check_bsl_syntax".to_string(),
                         arguments: "{\"code\":\"Сообщить(\\\"ok\\\");\"}".to_string(),
                     },
+                    extra_content: None,
                 }]),
                 tool_call_id: None,
                 name: None,
